@@ -97,10 +97,13 @@ function RefPanel({ resource, label }: { resource: Section; label: string }) {
   const add = async () => {
     if (!newName.trim()) return;
     setAdding(true); setError("");
-    const res = await apiAdminAdd(resource, { name: newName.trim() });
-    setAdding(false);
-    if (res.id) { setNewName(""); load(); }
-    else setError(res.error || "Ошибка добавления");
+    try {
+      const res = await apiAdminAdd(resource, { name: newName.trim() });
+      if (res.id) { setNewName(""); load(); }
+      else setError((res.error as string) || "Ошибка добавления");
+    } finally {
+      setAdding(false);
+    }
   };
 
   const save = async (id: number, name: string) => {
@@ -188,21 +191,23 @@ function UsersPanel() {
     if (!form.name.trim() || !form.login.trim()) { setError("Имя и логин обязательны"); return; }
     if (!editUser && !form.password.trim()) { setError("Пароль обязателен для нового пользователя"); return; }
     setSaving(true);
-    const data: Record<string, unknown> = {
-      name: form.name.trim(), login: form.login.trim(), role: form.role,
-      department_id: form.department_id ? Number(form.department_id) : null,
-    };
-    if (form.password.trim()) data.password = form.password.trim();
-
-    let res;
-    if (editUser) {
-      res = await apiAdminEdit("users", { id: editUser.id, ...data });
-    } else {
-      res = await apiAdminAdd("users", data);
+    try {
+      const data: Record<string, unknown> = {
+        name: form.name.trim(), login: form.login.trim(), role: form.role,
+        department_id: form.department_id ? Number(form.department_id) : null,
+      };
+      if (form.password.trim()) data.password = form.password.trim();
+      let res;
+      if (editUser) {
+        res = await apiAdminEdit("users", { id: editUser.id, ...data });
+      } else {
+        res = await apiAdminAdd("users", data);
+      }
+      if (res.ok || res.id) { setShowForm(false); load(); }
+      else setError((res.error as string) || "Ошибка сохранения");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    if (res.ok || res.id) { setShowForm(false); load(); }
-    else setError(res.error || "Ошибка сохранения");
   };
 
   const del = async (id: number) => {

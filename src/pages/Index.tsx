@@ -95,13 +95,16 @@ function LoginScreen({ onLogin }: { onLogin: (user: User, token: string) => void
   const submit = async () => {
     if (!login || !password) return;
     setLoading(true); setError("");
-    const res = await apiLogin(login, password);
-    setLoading(false);
-    if (res.token) {
-      localStorage.setItem("token", res.token);
-      onLogin(res.user, res.token);
-    } else {
-      setError(res.error || "Ошибка входа");
+    try {
+      const res = await apiLogin(login, password);
+      if (res.token) {
+        localStorage.setItem("token", res.token);
+        onLogin(res.user as never, res.token as string);
+      } else {
+        setError((res.error as string) || "Ошибка входа");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -173,13 +176,16 @@ function NewOrderForm({ user, refs, onClose, onCreated }: {
     if (!load_location_id) { setError("Выберите место погрузки"); return; }
     if (!unload_location_id) { setError("Выберите место выгрузки"); return; }
     setLoading(true); setError("");
-    const res = await apiCreateOrder({
-      cargo_type_id, quantity, execution_date,
-      load_location_id, unload_location_id, note,
-    });
-    setLoading(false);
-    if (res.id) { onCreated(); onClose(); }
-    else setError(res.error || "Ошибка создания");
+    try {
+      const res = await apiCreateOrder({
+        cargo_type_id, quantity, execution_date,
+        load_location_id, unload_location_id, note,
+      });
+      if (res.id) { onCreated(); onClose(); }
+      else setError((res.error as string) || "Ошибка создания");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const Select = ({ label, value, onChange, items, placeholder }: {
@@ -280,10 +286,13 @@ function OrderPanel({ order, user, refs, onClose, onSaved }: {
   const save = async () => {
     if (!Object.keys(fields).length) { onClose(); return; }
     setSaving(true); setSaveError("");
-    const res = await apiUpdateOrder(order.id, fields);
-    setSaving(false);
-    if (res.ok) { onSaved(); onClose(); }
-    else setSaveError(res.error || "Ошибка сохранения");
+    try {
+      const res = await apiUpdateOrder(order.id, fields);
+      if (res.ok) { onSaved(); onClose(); }
+      else setSaveError((res.error as string) || "Ошибка сохранения");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const val = (k: string) => fields[k] !== undefined

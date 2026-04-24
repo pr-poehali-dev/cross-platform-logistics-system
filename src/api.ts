@@ -12,76 +12,70 @@ function authHeaders() {
   return { "Content-Type": "application/json", "Authorization": getToken() };
 }
 
+async function safeFetch(input: string, init?: RequestInit): Promise<Record<string, unknown>> {
+  try {
+    const r = await fetch(input, init);
+    return r.json();
+  } catch {
+    return { error: "Ошибка сети. Проверьте подключение и попробуйте снова." };
+  }
+}
+
 export async function apiLogin(login: string, password: string) {
-  const r = await fetch(URLS.auth, {
+  return safeFetch(URLS.auth, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ login, password }),
   });
-  return r.json();
 }
 
 export async function apiMe() {
-  const r = await fetch(`${URLS.auth}?action=me`, { headers: authHeaders() });
-  return r.json();
+  return safeFetch(`${URLS.auth}?action=me`, { headers: authHeaders() });
 }
 
 export async function apiGetOrders() {
-  const r = await fetch(`${URLS.orders}?action=list`, { headers: authHeaders() });
-  return r.json();
+  return safeFetch(`${URLS.orders}?action=list`, { headers: authHeaders() });
 }
 
 export async function apiCreateOrder(data: Record<string, string>) {
-  const r = await fetch(`${URLS.orders}?action=create`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(data),
+  return safeFetch(`${URLS.orders}?action=create`, {
+    method: "POST", headers: authHeaders(), body: JSON.stringify(data),
   });
-  return r.json();
 }
 
 export async function apiUpdateOrder(id: number, fields: Record<string, unknown>) {
-  const r = await fetch(`${URLS.orders}?action=update`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({ id, ...fields }),
+  return safeFetch(`${URLS.orders}?action=update`, {
+    method: "POST", headers: authHeaders(), body: JSON.stringify({ id, ...fields }),
   });
-  return r.json();
 }
 
 export async function apiGetLogs() {
-  const r = await fetch(`${URLS.orders}?action=logs`, { headers: authHeaders() });
-  return r.json();
+  return safeFetch(`${URLS.orders}?action=logs`, { headers: authHeaders() });
 }
 
 export async function apiGetRefs() {
-  const r = await fetch(`${URLS.orders}?action=refs`, { headers: authHeaders() });
-  return r.json();
+  return safeFetch(`${URLS.orders}?action=refs`, { headers: authHeaders() });
 }
 
 // ── Admin API ──────────────────────────────────────────────────────────────
 export async function apiAdminList(resource: string) {
-  const r = await fetch(`${URLS.admin}?resource=${resource}&action=list`, { headers: authHeaders() });
-  return r.json();
+  return safeFetch(`${URLS.admin}?resource=${resource}&action=list`, { headers: authHeaders() });
 }
 
 export async function apiAdminAdd(resource: string, data: Record<string, unknown>) {
-  const r = await fetch(`${URLS.admin}?resource=${resource}&action=add`, {
+  return safeFetch(`${URLS.admin}?resource=${resource}&action=add`, {
     method: "POST", headers: authHeaders(), body: JSON.stringify(data),
   });
-  return r.json();
 }
 
 export async function apiAdminEdit(resource: string, data: Record<string, unknown>) {
-  const r = await fetch(`${URLS.admin}?resource=${resource}&action=edit`, {
+  return safeFetch(`${URLS.admin}?resource=${resource}&action=edit`, {
     method: "POST", headers: authHeaders(), body: JSON.stringify(data),
   });
-  return r.json();
 }
 
 export async function apiAdminDelete(resource: string, id: number) {
-  const r = await fetch(`${URLS.admin}?resource=${resource}&action=delete`, {
+  return safeFetch(`${URLS.admin}?resource=${resource}&action=delete`, {
     method: "POST", headers: authHeaders(), body: JSON.stringify({ id }),
   });
-  return r.json();
 }

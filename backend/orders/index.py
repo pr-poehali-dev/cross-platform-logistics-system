@@ -86,7 +86,7 @@ def compute_stage(o: dict) -> int:
     if o.get("arrival_load_time"):     return 6
     if o.get("driver_name"):           return 5
     if o.get("vehicle_model") or o.get("vehicle_id"): return 4
-    if o.get("priority") is not None:  return 3
+    if o.get("priority") is not None:  return 2
     if o.get("applicant_name"):        return 2
     return 1
 

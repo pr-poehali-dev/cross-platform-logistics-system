@@ -85,6 +85,22 @@ const ROLE_MIN_STAGE: Record<string, number> = {
   shop_chief: 1, admin: 0,
 };
 
+// Поля, которые каждая роль имеет право редактировать
+const ROLE_ALLOWED_FIELDS: Record<string, string[]> = {
+  ppb:        ["priority"],
+  tc:         ["vehicle_id", "vehicle_model"],
+  tc_master:  ["driver_name", "driver_id"],
+  driver:     ["arrival_load_time", "load_start_time", "arrival_unload_time", "unload_start_time"],
+  sender:     ["departure_load_time", "sender_sign"],
+  receiver:   ["departure_unload_time", "receiver_sign", "done"],
+  shop_chief: ["note"],
+  admin:      ["cargo_type_id", "cargo_name", "quantity", "execution_date", "load_location_id",
+               "load_place", "unload_location_id", "unload_place", "priority", "vehicle_id",
+               "vehicle_model", "driver_name", "driver_id", "arrival_load_time", "load_start_time",
+               "departure_load_time", "sender_sign", "arrival_unload_time", "unload_start_time",
+               "departure_unload_time", "receiver_sign", "note", "done"],
+};
+
 // ── Экран входа ────────────────────────────────────────────────────────────
 function LoginScreen({ onLogin }: { onLogin: (user: User, token: string) => void }) {
   const [login, setLogin] = useState("");
@@ -299,8 +315,9 @@ function OrderPanel({ order, user, refs, onClose, onSaved }: {
     ? String(fields[k])
     : String((order as unknown as Record<string, unknown>)[k] || "");
 
-  const canEditField = (roleFields: string[], k: string) =>
-    editable && roleFields.includes(k);
+  const allowedFields = ROLE_ALLOWED_FIELDS[user.role] ?? [];
+  const canEditField = (_roleFields: string[], k: string) =>
+    editable && allowedFields.includes(k);
 
   const Input = ({ label, k, type = "text", roleFields }: {
     label: string; k: string; type?: string; roleFields: string[];

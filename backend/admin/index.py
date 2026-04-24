@@ -182,6 +182,26 @@ def handler(event: dict, context) -> dict:
             conn.close()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 
+    # ── Конфигурация столбцов ─────────────────────────────────────────────────
+    if resource == "column_config":
+        if action == "list":
+            cur.execute(f"SELECT key, label, visible, sort_order FROM {SCHEMA}.column_config ORDER BY sort_order")
+            rows = [{"key": r[0], "label": r[1], "visible": r[2], "sort_order": r[3]} for r in cur.fetchall()]
+            conn.close()
+            return {"statusCode": 200, "headers": CORS,
+                    "body": json.dumps(rows, ensure_ascii=False)}
+
+        if action == "save" and method == "POST":
+            items = body.get("items", [])
+            for item in items:
+                cur.execute(
+                    f"UPDATE {SCHEMA}.column_config SET visible = %s, sort_order = %s WHERE key = %s",
+                    (item["visible"], item["sort_order"], item["key"])
+                )
+            conn.commit()
+            conn.close()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
     # ── Статусы (stage_labels) ────────────────────────────────────────────────
     if resource == "stage_labels":
         if action == "list":

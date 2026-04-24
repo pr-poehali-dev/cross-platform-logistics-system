@@ -87,3 +87,9 @@ export async function apiAdminDelete(resource: string, id: number) {
     method: "POST", headers: jsonHeaders(), body: JSON.stringify({ id }),
   });
 }
+
+export async function apiAdminSaveColumns(items: { key: string; visible: boolean; sort_order: number }[]) {
+  return safeFetch(withToken(`${URLS.admin}?resource=column_config&action=save`), {
+    method: "POST", headers: jsonHeaders(), body: JSON.stringify({ items }),
+  });
+}

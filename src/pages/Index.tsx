@@ -22,6 +22,7 @@ interface Refs {
   drivers: RefItem[];
   role_labels?: Record<string, string>;
   stage_labels?: Record<number, string>;
+  column_config?: { key: string; label: string; visible: boolean; sort_order: number }[];
 }
 
 interface Order {
@@ -758,50 +759,85 @@ export default function Index() {
             )}
 
             {/* Таблица */}
-            <div className="bg-white border border-[#E0E0E0] overflow-x-auto">
-              <div className="grid grid-cols-[90px_100px_1fr_60px_60px_200px_130px_110px] min-w-[900px] bg-[#F7F7F5] border-b border-[#E0E0E0]">
-                {["№", "Дата", "Груз / Подразделение", "Кол.", "Приор.", "Место погрузки → выгрузки", "Водитель", "Этап"].map(h => (
-                  <div key={h} className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#999]">{h}</div>
-                ))}
-              </div>
-              {filtered.length === 0 && (
-                <div className="py-16 text-center text-sm text-[#BBB]">
-                  {orders.length === 0 ? "Нет заявок. Нажмите «Новая заявка»." : "Нет заявок по фильтру."}
-                </div>
-              )}
-              {filtered.map((o, i) => {
+            {(() => {
+              const COL_DEFAULTS = [
+                { key: "order_num",    label: "№",                      visible: true, sort_order: 1 },
+                { key: "created_date", label: "Дата",                   visible: true, sort_order: 2 },
+                { key: "cargo",        label: "Груз / Подразделение",   visible: true, sort_order: 3 },
+                { key: "quantity",     label: "Кол.",                   visible: true, sort_order: 4 },
+                { key: "priority",     label: "Приор.",                 visible: true, sort_order: 5 },
+                { key: "places",       label: "Место погр. → выгр.",    visible: true, sort_order: 6 },
+                { key: "driver_name",  label: "Водитель",               visible: true, sort_order: 7 },
+                { key: "stage",        label: "Этап",                   visible: true, sort_order: 8 },
+              ];
+              const cols = (refs.column_config && refs.column_config.length > 0 ? refs.column_config : COL_DEFAULTS)
+                .filter(c => c.visible)
+                .sort((a, b) => a.sort_order - b.sort_order);
+
+              const COL_WIDTHS: Record<string, string> = {
+                order_num: "90px", created_date: "100px", cargo: "1fr",
+                quantity: "60px", priority: "60px", places: "200px",
+                driver_name: "130px", stage: "110px",
+              };
+              const gridTemplate = cols.map(c => COL_WIDTHS[c.key] || "100px").join(" ");
+
+              const renderCell = (o: Order, key: string) => {
                 const s = o.stage || 1;
-                return (
-                  <div key={o.id} onClick={() => setSelectedOrder(o)}
-                    className={`grid grid-cols-[90px_100px_1fr_60px_60px_200px_130px_110px] min-w-[900px] border-b border-[#F0F0EE] hover:bg-[#FAFAFA] cursor-pointer transition-colors ${i === filtered.length - 1 ? "border-b-0" : ""}`}>
-                    <div className="px-3 py-3 text-[11px] font-mono text-[#888]">{o.order_num}</div>
-                    <div className="px-3 py-3 text-xs text-[#666]">{o.created_date}</div>
-                    <div className="px-3 py-3">
-                      <p className="text-sm font-medium leading-tight">{o.cargo_name || <span className="text-[#CCC]">не указан</span>}</p>
-                      <p className="text-[11px] text-[#AAA] mt-0.5">{o.department}{o.applicant_name ? ` · ${o.applicant_name}` : ""}</p>
-                    </div>
-                    <div className="px-3 py-3 text-sm text-[#555]">{o.quantity || "—"}</div>
-                    <div className="px-3 py-3">
-                      <span className={`text-xs font-bold ${o.priority !== null && o.priority <= 5 ? "text-red-600" : o.priority !== null && o.priority <= 20 ? "text-amber-600" : "text-[#AAA]"}`}>
-                        {o.priority ?? "—"}
-                      </span>
-                    </div>
-                    <div className="px-3 py-3 text-xs text-[#666]">
-                      <p className="truncate">{o.load_place || "—"}</p>
-                      <p className="truncate text-[#AAA] mt-0.5">{o.unload_place || "—"}</p>
-                    </div>
-                    <div className="px-3 py-3 text-xs">
-                      {o.driver_name || <span className="text-[#CCC]">не назначен</span>}
-                    </div>
-                    <div className="px-3 py-3">
-                      <span className={`text-[10px] font-medium px-2 py-0.5 border inline-block w-[15ch] text-center leading-tight break-words whitespace-normal ${STAGE_COLOR[s]}`}>
-                        {refs.stage_labels?.[s] ?? STAGE_LABELS[s]}
-                      </span>
-                    </div>
+                if (key === "order_num") return <div className="px-3 py-3 text-[11px] font-mono text-[#888]">{o.order_num}</div>;
+                if (key === "created_date") return <div className="px-3 py-3 text-xs text-[#666]">{o.created_date}</div>;
+                if (key === "cargo") return (
+                  <div className="px-3 py-3">
+                    <p className="text-sm font-medium leading-tight">{o.cargo_name || <span className="text-[#CCC]">не указан</span>}</p>
+                    <p className="text-[11px] text-[#AAA] mt-0.5">{o.department}{o.applicant_name ? ` · ${o.applicant_name}` : ""}</p>
                   </div>
                 );
-              })}
-            </div>
+                if (key === "quantity") return <div className="px-3 py-3 text-sm text-[#555]">{o.quantity || "—"}</div>;
+                if (key === "priority") return (
+                  <div className="px-3 py-3">
+                    <span className={`text-xs font-bold ${o.priority !== null && o.priority <= 5 ? "text-red-600" : o.priority !== null && o.priority <= 20 ? "text-amber-600" : "text-[#AAA]"}`}>
+                      {o.priority ?? "—"}
+                    </span>
+                  </div>
+                );
+                if (key === "places") return (
+                  <div className="px-3 py-3 text-xs text-[#666]">
+                    <p className="truncate">{o.load_place || "—"}</p>
+                    <p className="truncate text-[#AAA] mt-0.5">{o.unload_place || "—"}</p>
+                  </div>
+                );
+                if (key === "driver_name") return <div className="px-3 py-3 text-xs">{o.driver_name || <span className="text-[#CCC]">не назначен</span>}</div>;
+                if (key === "stage") return (
+                  <div className="px-3 py-3">
+                    <span className={`text-[10px] font-medium px-2 py-0.5 border inline-block w-[15ch] text-center leading-tight break-words whitespace-normal ${STAGE_COLOR[s]}`}>
+                      {refs.stage_labels?.[s] ?? STAGE_LABELS[s]}
+                    </span>
+                  </div>
+                );
+                return <div className="px-3 py-3" />;
+              };
+
+              return (
+                <div className="bg-white border border-[#E0E0E0] overflow-x-auto">
+                  <div className="grid bg-[#F7F7F5] border-b border-[#E0E0E0]" style={{ gridTemplateColumns: gridTemplate, minWidth: "600px" }}>
+                    {cols.map(c => (
+                      <div key={c.key} className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#999]">{c.label}</div>
+                    ))}
+                  </div>
+                  {filtered.length === 0 && (
+                    <div className="py-16 text-center text-sm text-[#BBB]">
+                      {orders.length === 0 ? "Нет заявок. Нажмите «Новая заявка»." : "Нет заявок по фильтру."}
+                    </div>
+                  )}
+                  {filtered.map((o, i) => (
+                    <div key={o.id} onClick={() => setSelectedOrder(o)}
+                      className={`grid border-b border-[#F0F0EE] hover:bg-[#FAFAFA] cursor-pointer transition-colors ${i === filtered.length - 1 ? "border-b-0" : ""}`}
+                      style={{ gridTemplateColumns: gridTemplate, minWidth: "600px" }}>
+                      {cols.map(c => <div key={c.key}>{renderCell(o, c.key)}</div>)}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
             <p className="text-[11px] text-[#AAA] mt-2">
               Показано {filtered.length} из {orders.length} · нажмите строку для заполнения
             </p>

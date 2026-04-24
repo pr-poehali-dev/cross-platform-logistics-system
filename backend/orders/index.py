@@ -146,11 +146,16 @@ def handler(event: dict, context) -> dict:
         cur.execute(f"SELECT stage, label FROM {SCHEMA}.stage_labels ORDER BY stage")
         stage_labels = {r[0]: r[1] for r in cur.fetchall()}
 
+        # конфигурация столбцов
+        cur.execute(f"SELECT key, label, visible, sort_order FROM {SCHEMA}.column_config ORDER BY sort_order")
+        column_config = [{"key": r[0], "label": r[1], "visible": r[2], "sort_order": r[3]} for r in cur.fetchall()]
+
         conn.close()
         return {"statusCode": 200, "headers": CORS, "body": json.dumps(
             {"departments": departments, "cargo_types": cargo_types,
              "locations": locations, "vehicles": vehicles, "drivers": drivers,
-             "role_labels": role_labels, "stage_labels": stage_labels},
+             "role_labels": role_labels, "stage_labels": stage_labels,
+             "column_config": column_config},
             ensure_ascii=False
         )}
 

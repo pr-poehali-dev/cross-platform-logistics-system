@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
-import { apiAdminList, apiAdminAdd, apiAdminEdit, apiAdminDelete } from "@/api";
+import { apiAdminList, apiAdminAdd, apiAdminEdit, apiAdminDelete, apiAdminSaveColumns } from "@/api";
 
 interface RefItem { id: number; name: string; }
 interface UserItem {
@@ -15,7 +15,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 const ROLES = Object.keys(ROLE_LABELS);
 
-type Section = "cargo_types" | "locations" | "vehicles" | "departments" | "users" | "role_labels" | "stage_labels";
+type Section = "cargo_types" | "locations" | "vehicles" | "departments" | "users" | "role_labels" | "stage_labels" | "column_config";
 const SECTIONS: { key: Section; label: string; icon: string }[] = [
   { key: "departments",  label: "Подразделения",   icon: "Building2" },
   { key: "cargo_types",  label: "Грузы",            icon: "Package" },
@@ -24,6 +24,7 @@ const SECTIONS: { key: Section; label: string; icon: string }[] = [
   { key: "users",        label: "Пользователи",      icon: "Users" },
   { key: "role_labels",  label: "Группы",            icon: "ShieldCheck" },
   { key: "stage_labels", label: "Статусы",           icon: "Tag" },
+  { key: "column_config", label: "Столбцы таблицы",  icon: "Columns" },
 ];
 
 // ── Редактируемая строка справочника ───────────────────────────────────────
@@ -406,6 +407,81 @@ function StageLabelsPanel() {
   );
 }
 
+// ── Конфигурация столбцов таблицы ─────────────────────────────────────────
+interface ColumnItem { key: string; label: string; visible: boolean; sort_order: number; }
+
+function ColumnConfigPanel() {
+  const [items, setItems] = useState<ColumnItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const res = await apiAdminList("column_config");
+    setItems(Array.isArray(res) ? (res as ColumnItem[]).sort((a, b) => a.sort_order - b.sort_order) : []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = (key: string) => {
+    setItems(prev => prev.map(c => c.key === key ? { ...c, visible: !c.visible } : c));
+    setSaved(false);
+  };
+
+  const move = (key: string, dir: -1 | 1) => {
+    setItems(prev => {
+      const arr = [...prev];
+      const idx = arr.findIndex(c => c.key === key);
+      const target = idx + dir;
+      if (target < 0 || target >= arr.length) return arr;
+      [arr[idx], arr[target]] = [arr[target], arr[idx]];
+      return arr.map((c, i) => ({ ...c, sort_order: i + 1 }));
+    });
+    setSaved(false);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    await apiAdminSaveColumns(items.map(c => ({ key: c.key, visible: c.visible, sort_order: c.sort_order })));
+    setSaving(false);
+    setSaved(true);
+  };
+
+  if (loading) return <p className="text-sm text-[#AAA]">Загрузка...</p>;
+
+  return (
+    <div>
+      <div className="bg-white border border-[#E0E0E0] mb-4">
+        {items.map((col, idx) => (
+          <div key={col.key} className="flex items-center gap-3 px-4 py-3 border-b border-[#F0F0EE] last:border-b-0">
+            <label className="flex items-center gap-2 flex-1 cursor-pointer">
+              <input type="checkbox" checked={col.visible} onChange={() => toggle(col.key)}
+                className="w-4 h-4 accent-black" />
+              <span className="text-sm">{col.label}</span>
+            </label>
+            <div className="flex gap-1">
+              <button onClick={() => move(col.key, -1)} disabled={idx === 0}
+                className="w-7 h-7 flex items-center justify-center border border-[#E0E0E0] hover:bg-[#F0F0EE] disabled:opacity-30">
+                <Icon name="ChevronUp" size={12} />
+              </button>
+              <button onClick={() => move(col.key, 1)} disabled={idx === items.length - 1}
+                className="w-7 h-7 flex items-center justify-center border border-[#E0E0E0] hover:bg-[#F0F0EE] disabled:opacity-30">
+                <Icon name="ChevronDown" size={12} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <button onClick={save} disabled={saving}
+        className="bg-[#111] text-white px-5 py-2 text-xs font-medium hover:bg-[#333] disabled:opacity-50">
+        {saving ? "Сохраняю..." : saved ? "Сохранено" : "Сохранить"}
+      </button>
+    </div>
+  );
+}
+
 // ── Редактирование названий групп ─────────────────────────────────────────
 interface RoleLabelItem { role: string; label: string; }
 
@@ -525,6 +601,8 @@ export default function Admin({ onBack }: { onBack: () => void }) {
                 ? "Отображаемые названия групп пользователей в интерфейсе"
                 : section === "stage_labels"
                 ? "Отображаемые названия статусов заявок в интерфейсе"
+                : section === "column_config"
+                ? "Выберите столбцы и настройте их порядок в таблице заявок"
                 : "Значения появятся в выпадающих списках при создании заявки"}
             </p>
           </div>
@@ -535,6 +613,8 @@ export default function Admin({ onBack }: { onBack: () => void }) {
             <RoleLabelsPanel />
           ) : section === "stage_labels" ? (
             <StageLabelsPanel />
+          ) : section === "column_config" ? (
+            <ColumnConfigPanel />
           ) : (
             <RefPanel
               resource={section}

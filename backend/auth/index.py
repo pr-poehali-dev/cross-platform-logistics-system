@@ -62,7 +62,7 @@ def handler(event: dict, context) -> dict:
 
     # GET ?action=me — проверка сессии
     if method == "GET" and action == "me":
-        token = event.get("headers", {}).get("x-authorization", "")
+        token = qs.get("_token", "")
         if not token:
             return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Нет токена"})}
 

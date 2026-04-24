@@ -42,9 +42,9 @@ def handler(event: dict, context) -> dict:
 
     method = event.get("httpMethod", "GET")
     qs = event.get("queryStringParameters") or {}
-    resource = qs.get("resource", "")   # cargo_types | locations | vehicles | departments | users
-    action = qs.get("action", "list")   # list | add | edit | delete
-    token = event.get("headers", {}).get("x-authorization", "")
+    resource = qs.get("resource", "")
+    action = qs.get("action", "list")
+    token = qs.get("_token", "")
 
     conn = get_conn()
     cur = conn.cursor()

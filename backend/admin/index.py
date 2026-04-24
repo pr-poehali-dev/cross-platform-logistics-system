@@ -69,9 +69,10 @@ def handler(event: dict, context) -> dict:
 
         if action == "list":
             cur.execute(f"SELECT id, name FROM {table} ORDER BY name")
+            rows = rows_to_list(cur)
             conn.close()
             return {"statusCode": 200, "headers": CORS,
-                    "body": json.dumps(rows_to_list(cur), ensure_ascii=False)}
+                    "body": json.dumps(rows, ensure_ascii=False)}
 
         if action == "add" and method == "POST":
             name = body.get("name", "").strip()
@@ -115,9 +116,10 @@ def handler(event: dict, context) -> dict:
                 LEFT JOIN {SCHEMA}.departments d ON d.id = u.department_id
                 ORDER BY u.role, u.name
             """)
+            rows = rows_to_list(cur)
             conn.close()
             return {"statusCode": 200, "headers": CORS,
-                    "body": json.dumps(rows_to_list(cur), ensure_ascii=False)}
+                    "body": json.dumps(rows, ensure_ascii=False)}
 
         if action == "add" and method == "POST":
             name = body.get("name", "").strip()

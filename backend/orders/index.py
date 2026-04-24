@@ -219,7 +219,9 @@ def handler(event: dict, context) -> dict:
             if r: unload_place = r[0]
 
         quantity = body.get("quantity", "")
-        execution_date = body.get("execution_date") or None
+        # datetime-local приходит как "2026-04-24T08:00", берём только дату
+        raw_date = body.get("execution_date") or None
+        execution_date = raw_date[:10] if raw_date else None
         note = body.get("note", "")
 
         cur.execute(

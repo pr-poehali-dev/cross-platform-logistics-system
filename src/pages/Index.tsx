@@ -1,164 +1,94 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
+import { apiLogin, apiMe, apiGetOrders, apiCreateOrder, apiUpdateOrder, apiGetLogs } from "@/api";
 
 type Tab = "orders" | "reports" | "history";
 
-// 9 этапов заявки
-// Этап 1 (день до): начальник цеха
-// Этап 2: ППБ
-// Этап 3: ТЦ
-// Этап 4: мастер транспортного цеха
-// Этап 5: водитель
-// Этап 6: ответственный за сдачу (погрузка)
-// Этап 7: водитель
-// Этап 8: ответственный за приём (разгрузка)
-// Этап 9: статус выполнения
-
-interface Order {
-  id: string;
-  // Этап 1 — начальник цеха
-  department: string;          // 1. Подразделение
-  applicantName: string;       // 2. Ф.И.О. подающего заявку
-  // Этап 2 — ППБ
-  cargoName: string;           // 3. Наименование груза
-  quantity: string;            // 4. Кол-во (шт)
-  requestTime: string;         // 5. Время подачи
-  loadPlace: string;           // 6. Место погрузки
-  unloadPlace: string;         // 7. Место выгрузки
-  priority: string;            // 8. Приоритет (1-99)
-  // Этап 3 — ТЦ
-  vehicleModel: string;        // 9. Наименование/модель транспорта
-  driverName: string;          // 10. ФИО водителя
-  // Этап 4 — мастер транспортного цеха (нет отдельных полей, утверждает)
-  // Этап 5 — водитель (погрузка)
-  arrivalLoadTime: string;     // 11. Время заезда в цех (погрузка)
-  loadStartTime: string;       // 12. Время начала погрузки
-  departureLoadTime: string;   // 13. Время выезда из цеха
-  // Этап 6 — ответственный за сдачу
-  senderSign: string;          // 14. Ответственный за сдачу (подпись)
-  // Этап 7 — водитель (разгрузка)
-  arrivalUnloadTime: string;   // 15. Время заезда в цех (разгрузка)
-  unloadStartTime: string;     // 16. Время начала разгрузки
-  departureUnloadTime: string; // 17. Время выезда из цеха
-  // Этап 8 — ответственный за приём
-  receiverSign: string;        // 18. Ответственный за приём (подпись)
-  // Прочее
-  note: string;                // 19. Примечание
-  done: boolean;               // 20. Статус выполнения
-  createdDate: string;
+interface User {
+  id: number;
+  name: string;
+  role: string;
 }
 
-const EMPTY_ORDER: Omit<Order, "id" | "createdDate" | "done"> = {
-  department: "", applicantName: "", cargoName: "", quantity: "",
-  requestTime: "", loadPlace: "", unloadPlace: "", priority: "",
-  vehicleModel: "", driverName: "",
-  arrivalLoadTime: "", loadStartTime: "", departureLoadTime: "", senderSign: "",
-  arrivalUnloadTime: "", unloadStartTime: "", departureUnloadTime: "", receiverSign: "",
-  note: "",
+interface Order {
+  id: number;
+  order_num: string;
+  department: string;
+  applicant_name: string;
+  cargo_name: string;
+  quantity: string;
+  request_time: string;
+  load_place: string;
+  unload_place: string;
+  priority: number | null;
+  vehicle_model: string;
+  driver_name: string;
+  driver_id: number | null;
+  arrival_load_time: string;
+  load_start_time: string;
+  departure_load_time: string;
+  sender_sign: string;
+  arrival_unload_time: string;
+  unload_start_time: string;
+  departure_unload_time: string;
+  receiver_sign: string;
+  note: string;
+  done: boolean;
+  created_date: string;
+}
+
+interface LogEntry {
+  user_name: string;
+  action: string;
+  target: string;
+  time: string;
+}
+
+// Поля, доступные каждой роли для редактирования
+const ROLE_FIELDS: Record<string, string[]> = {
+  shop_chief: ["department", "applicant_name"],
+  ppb:        ["cargo_name", "quantity", "request_time", "load_place", "unload_place", "priority"],
+  tc:         ["vehicle_model", "driver_name"],
+  tc_master:  [],
+  driver:     ["arrival_load_time", "load_start_time", "departure_load_time",
+               "arrival_unload_time", "unload_start_time", "departure_unload_time"],
+  sender:     ["sender_sign"],
+  receiver:   ["receiver_sign", "done"],
+  admin:      ["department", "applicant_name", "cargo_name", "quantity", "request_time",
+               "load_place", "unload_place", "priority", "vehicle_model", "driver_name",
+               "arrival_load_time", "load_start_time", "departure_load_time", "sender_sign",
+               "arrival_unload_time", "unload_start_time", "departure_unload_time",
+               "receiver_sign", "note", "done"],
 };
 
-const SAMPLE_ORDERS: Order[] = [
-  {
-    id: "ЗПВ-0041", createdDate: "24.04.2026", done: false,
-    department: "Цех №3", applicantName: "Морозов В.А.", cargoName: "Коленвал МТЗ-82", quantity: "1",
-    requestTime: "08:00", loadPlace: "Склад А, стеллаж 14", unloadPlace: "Цех №3, участок сборки", priority: "5",
-    vehicleModel: "ГАЗель Next", driverName: "Иванов К.П.",
-    arrivalLoadTime: "09:10", loadStartTime: "09:15", departureLoadTime: "09:35", senderSign: "Горелов П.И.",
-    arrivalUnloadTime: "", unloadStartTime: "", departureUnloadTime: "", receiverSign: "",
-    note: "Хрупкий груз, осторожно",
-  },
-  {
-    id: "ЗПВ-0040", createdDate: "24.04.2026", done: true,
-    department: "Склад Б", applicantName: "Кузнецова И.Р.", cargoName: "Тормозные колодки (к-т)", quantity: "4",
-    requestTime: "07:30", loadPlace: "ООО «Дета», ворота №2", unloadPlace: "Склад Б, сектор В", priority: "12",
-    vehicleModel: "Ford Transit", driverName: "Петров М.С.",
-    arrivalLoadTime: "08:15", loadStartTime: "08:20", departureLoadTime: "08:40", senderSign: "Ефимов А.С.",
-    arrivalUnloadTime: "09:05", unloadStartTime: "09:10", departureUnloadTime: "09:25", receiverSign: "Кузнецова И.Р.",
-    note: "",
-  },
-  {
-    id: "ЗПВ-0039", createdDate: "23.04.2026", done: true,
-    department: "Цех №1", applicantName: "Белов С.Д.", cargoName: "Фильтр масляный (12 шт)", quantity: "12",
-    requestTime: "07:00", loadPlace: "Склад Б, стеллаж 3", unloadPlace: "Цех №1, инструменталка", priority: "20",
-    vehicleModel: "ГАЗель Next", driverName: "Сидоров А.В.",
-    arrivalLoadTime: "07:25", loadStartTime: "07:30", departureLoadTime: "07:45", senderSign: "Орлов В.К.",
-    arrivalUnloadTime: "08:00", unloadStartTime: "08:05", departureUnloadTime: "08:15", receiverSign: "Белов С.Д.",
-    note: "",
-  },
-  {
-    id: "ЗПВ-0038", createdDate: "23.04.2026", done: false,
-    department: "Ремонтный цех", applicantName: "Зайцев Н.М.", cargoName: "Поршневая группа", quantity: "2",
-    requestTime: "06:45", loadPlace: "Цех №2, зона хранения", unloadPlace: "Ремонтный цех", priority: "3",
-    vehicleModel: "", driverName: "",
-    arrivalLoadTime: "", loadStartTime: "", departureLoadTime: "", senderSign: "",
-    arrivalUnloadTime: "", unloadStartTime: "", departureUnloadTime: "", receiverSign: "",
-    note: "Отменена по распоряжению начальника",
-  },
-  {
-    id: "ЗПВ-0036", createdDate: "24.04.2026", done: false,
-    department: "Цех №4", applicantName: "Соколов Р.Е.", cargoName: "Редуктор заднего моста", quantity: "1",
-    requestTime: "09:00", loadPlace: "Склад А, тяжёлый сектор", unloadPlace: "Цех №4, монтажный участок", priority: "1",
-    vehicleModel: "КамАЗ-4308", driverName: "Новиков Р.Е.",
-    arrivalLoadTime: "", loadStartTime: "", departureLoadTime: "", senderSign: "",
-    arrivalUnloadTime: "", unloadStartTime: "", departureUnloadTime: "", receiverSign: "",
-    note: "",
-  },
-];
+const ROLE_LABELS: Record<string, string> = {
+  shop_chief: "Начальник цеха",
+  ppb:        "ППБ",
+  tc:         "Транспортный цех",
+  tc_master:  "Мастер ТЦ",
+  driver:     "Водитель",
+  sender:     "Ответственный за сдачу",
+  receiver:   "Ответственный за приём",
+  admin:      "Администратор",
+};
 
-const LOGS = [
-  { id: "1", user: "Иванов К.П.", action: "Обновил время заезда", target: "ЗПВ-0041", time: "09:14" },
-  { id: "2", user: "Диспетчер Смирнова", action: "Закрыла заявку", target: "ЗПВ-0040 → выполнено", time: "08:52" },
-  { id: "3", user: "Петров М.С.", action: "Заполнил этап разгрузки", target: "ЗПВ-0040", time: "08:30" },
-  { id: "4", user: "Администратор", action: "Отменил заявку", target: "ЗПВ-0038", time: "07:55" },
-  { id: "5", user: "Сидоров А.В.", action: "Завершил доставку", target: "ЗПВ-0039", time: "07:40" },
-  { id: "6", user: "Диспетчер Смирнова", action: "Назначила транспорт", target: "ЗПВ-0036 → КамАЗ-4308", time: "07:15" },
-  { id: "7", user: "Новиков Р.Е.", action: "Просмотрел заявку", target: "ЗПВ-0036", time: "07:10" },
-  { id: "8", user: "Иванов К.П.", action: "Завершил доставку", target: "ЗПВ-0037", time: "вчера 18:22" },
-];
-
-const STATS = [
-  { label: "Всего за месяц", value: "214", sub: "перевозок" },
-  { label: "Выполнено", value: "198", sub: "92,5%" },
-  { label: "Отменено", value: "16", sub: "7,5%" },
-  { label: "Средний приоритет", value: "8,3", sub: "из 99" },
-  { label: "Активных водителей", value: "8", sub: "сегодня" },
-  { label: "Заявок сегодня", value: "12", sub: "из них 3 в пути" },
-];
-
-const MONTHLY = [
-  { month: "Янв", count: 178 },
-  { month: "Фев", count: 192 },
-  { month: "Мар", count: 205 },
-  { month: "Апр", count: 214 },
-];
-const maxCount = Math.max(...MONTHLY.map(m => m.count));
-
-// Определяем текущий этап заявки
 function getStage(o: Order): number {
   if (o.done) return 9;
-  if (o.receiverSign) return 9;
-  if (o.arrivalUnloadTime) return 8;
-  if (o.senderSign) return 7;
-  if (o.arrivalLoadTime) return 6;
-  if (o.driverName) return 5;
-  if (o.vehicleModel) return 4;
-  if (o.priority) return 3;
-  if (o.applicantName) return 2;
+  if (o.receiver_sign) return 9;
+  if (o.arrival_unload_time) return 8;
+  if (o.sender_sign) return 7;
+  if (o.arrival_load_time) return 6;
+  if (o.driver_name) return 5;
+  if (o.vehicle_model) return 4;
+  if (o.priority !== null) return 3;
+  if (o.applicant_name) return 2;
   return 1;
 }
 
 const STAGE_LABELS: Record<number, string> = {
-  1: "Заявка создана",
-  2: "ППБ",
-  3: "ТЦ назначен",
-  4: "Утверждено мастером",
-  5: "Водитель назначен",
-  6: "Погрузка",
-  7: "В пути",
-  8: "Разгрузка",
-  9: "Выполнено",
+  1: "Заявка создана", 2: "ППБ", 3: "ТЦ назначен", 4: "Утверждено",
+  5: "Водитель назначен", 6: "Погрузка", 7: "В пути", 8: "Разгрузка", 9: "Выполнено",
 };
-
 const STAGE_COLOR: Record<number, string> = {
   1: "bg-slate-100 text-slate-600 border-slate-200",
   2: "bg-slate-100 text-slate-600 border-slate-200",
@@ -171,117 +101,212 @@ const STAGE_COLOR: Record<number, string> = {
   9: "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
 
-// ─── Компонент: детальный просмотр заявки ───────────────────────────────────
-function OrderDetail({ order, onClose }: { order: Order; onClose: () => void }) {
+// ── Экран входа ────────────────────────────────────────────────────────────
+function LoginScreen({ onLogin }: { onLogin: (user: User, token: string) => void }) {
+  const [login, setLogin] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    if (!login || !password) return;
+    setLoading(true);
+    setError("");
+    const res = await apiLogin(login, password);
+    setLoading(false);
+    if (res.token) {
+      localStorage.setItem("token", res.token);
+      onLogin(res.user, res.token);
+    } else {
+      setError(res.error || "Ошибка входа");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F7F7F5] font-ibm flex items-center justify-center">
+      <div className="bg-white border border-[#E0E0E0] w-full max-w-sm p-8 animate-fade-in">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-7 h-7 bg-[#111] flex items-center justify-center">
+            <Icon name="Truck" size={14} className="text-white" />
+          </div>
+          <span className="font-semibold text-sm tracking-wide uppercase">ТрансДеталь</span>
+        </div>
+        <p className="text-[10px] uppercase tracking-wider text-[#999] mb-6">Вход в систему</p>
+
+        <div className="space-y-3 mb-4">
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-[#999] mb-1">Логин</label>
+            <input
+              className="w-full border border-[#E0E0E0] bg-[#F7F7F5] px-3 py-2.5 text-sm outline-none focus:border-[#111] transition-colors"
+              value={login}
+              onChange={e => setLogin(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && submit()}
+              placeholder="ivanov"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-[#999] mb-1">Пароль</label>
+            <input
+              type="password"
+              className="w-full border border-[#E0E0E0] bg-[#F7F7F5] px-3 py-2.5 text-sm outline-none focus:border-[#111] transition-colors"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && submit()}
+              placeholder="••••"
+            />
+          </div>
+        </div>
+
+        {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
+
+        <button
+          onClick={submit}
+          disabled={loading}
+          className="w-full bg-[#111] text-white py-2.5 text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-50"
+        >
+          {loading ? "Вход..." : "Войти"}
+        </button>
+
+        <div className="mt-6 border-t border-[#F0F0EE] pt-4">
+          <p className="text-[10px] text-[#BBB] mb-2">Тестовые логины (пароль: 1234)</p>
+          {[
+            ["morozov",   "Нач. цеха"],
+            ["smirnova",  "ППБ"],
+            ["orlov",     "Мастер ТЦ"],
+            ["ivanov",    "Водитель"],
+            ["gorelov",   "Сдача"],
+            ["kuznetsova","Приём"],
+            ["admin",     "Администратор"],
+          ].map(([l, label]) => (
+            <button
+              key={l}
+              onClick={() => { setLogin(l); setPassword("1234"); }}
+              className="inline-block text-[10px] text-[#888] hover:text-[#111] mr-3 transition-colors"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Детальный просмотр заявки ──────────────────────────────────────────────
+function OrderDetail({ order, user, onClose, onSaved }: {
+  order: Order; user: User; onClose: () => void; onSaved: () => void;
+}) {
   const stage = getStage(order);
+  const allowed = ROLE_FIELDS[user.role] || [];
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+
+  const setField = (k: string, v: string) => setEdits(p => ({ ...p, [k]: v }));
+  const val = (k: string) => edits[k] !== undefined ? edits[k] : ((order as unknown as Record<string, string>)[k] || "");
+
+  const canEdit = (k: string) => allowed.includes(k);
+
+  const save = async () => {
+    if (!Object.keys(edits).length) { onClose(); return; }
+    setSaving(true);
+    await apiUpdateOrder(order.id, edits);
+    setSaving(false);
+    onSaved();
+    onClose();
+  };
 
   const STAGES = [
-    {
-      num: 1, label: "Заявка", role: "Начальник цеха", day: "День до",
-      fields: [
-        { label: "Подразделение",          value: order.department },
-        { label: "Ф.И.О. подающего заявку", value: order.applicantName },
-      ],
-    },
-    {
-      num: 2, label: "ППБ", role: "ППБ", day: "День до",
-      fields: [
-        { label: "Наименование груза",  value: order.cargoName },
-        { label: "Кол-во (шт)",         value: order.quantity },
-        { label: "Время подачи",         value: order.requestTime },
-        { label: "Место погрузки",       value: order.loadPlace },
-        { label: "Место выгрузки",       value: order.unloadPlace },
-        { label: "Приоритет (1–99)",     value: order.priority },
-      ],
-    },
-    {
-      num: 3, label: "ТЦ", role: "Транспортный цех", day: "День до",
-      fields: [
-        { label: "Наименование/модель транспорта", value: order.vehicleModel },
-        { label: "ФИО водителя",                   value: order.driverName },
-      ],
-    },
-    {
-      num: 4, label: "Утверждение", role: "Мастер ТЦ", day: "День исполнения",
-      fields: [],
-    },
-    {
-      num: 5, label: "Водитель (погрузка)", role: "Водитель", day: "День исполнения",
-      fields: [
-        { label: "Время заезда в цех",      value: order.arrivalLoadTime },
-        { label: "Время начала погрузки",   value: order.loadStartTime },
-        { label: "Время выезда из цеха",    value: order.departureLoadTime },
-      ],
-    },
-    {
-      num: 6, label: "Сдача груза", role: "Ответственный за сдачу", day: "День исполнения",
-      fields: [
-        { label: "Ответственный (подпись)", value: order.senderSign },
-      ],
-    },
-    {
-      num: 7, label: "Водитель (разгрузка)", role: "Водитель", day: "День исполнения",
-      fields: [
-        { label: "Время заезда в цех",       value: order.arrivalUnloadTime },
-        { label: "Время начала разгрузки",   value: order.unloadStartTime },
-        { label: "Время выезда из цеха",     value: order.departureUnloadTime },
-      ],
-    },
-    {
-      num: 8, label: "Приём груза", role: "Ответственный за приём", day: "День исполнения",
-      fields: [
-        { label: "Ответственный (подпись)", value: order.receiverSign },
-      ],
-    },
-    {
-      num: 9, label: "Статус", role: "Итог", day: "",
-      fields: [
-        { label: "Выполнено",   value: order.done ? "Да" : "Нет" },
-        { label: "Примечание",  value: order.note || "—" },
-      ],
-    },
+    { num: 1, label: "Заявка", role: "Начальник цеха", day: "День до", fields: [
+      { k: "department",    label: "Подразделение" },
+      { k: "applicant_name", label: "Ф.И.О. подающего заявку" },
+    ]},
+    { num: 2, label: "ППБ", role: "ППБ", day: "День до", fields: [
+      { k: "cargo_name",  label: "Наименование груза" },
+      { k: "quantity",    label: "Кол-во (шт)" },
+      { k: "request_time", label: "Время подачи" },
+      { k: "load_place",   label: "Место погрузки" },
+      { k: "unload_place", label: "Место выгрузки" },
+      { k: "priority",     label: "Приоритет (1–99)" },
+    ]},
+    { num: 3, label: "ТЦ", role: "Транспортный цех", day: "День до", fields: [
+      { k: "vehicle_model", label: "Транспорт" },
+      { k: "driver_name",   label: "ФИО водителя" },
+    ]},
+    { num: 4, label: "Утверждение", role: "Мастер ТЦ", day: "День исполнения", fields: [] },
+    { num: 5, label: "Водитель (погрузка)", role: "Водитель", day: "День исполнения", fields: [
+      { k: "arrival_load_time",   label: "Время заезда в цех" },
+      { k: "load_start_time",     label: "Время начала погрузки" },
+      { k: "departure_load_time", label: "Время выезда из цеха" },
+    ]},
+    { num: 6, label: "Сдача груза", role: "Отв. за сдачу", day: "День исполнения", fields: [
+      { k: "sender_sign", label: "Подпись ответственного" },
+    ]},
+    { num: 7, label: "Водитель (разгрузка)", role: "Водитель", day: "День исполнения", fields: [
+      { k: "arrival_unload_time",   label: "Время заезда в цех" },
+      { k: "unload_start_time",     label: "Время начала разгрузки" },
+      { k: "departure_unload_time", label: "Время выезда из цеха" },
+    ]},
+    { num: 8, label: "Приём груза", role: "Отв. за приём", day: "День исполнения", fields: [
+      { k: "receiver_sign", label: "Подпись ответственного" },
+    ]},
+    { num: 9, label: "Статус", role: "Итог", day: "", fields: [
+      { k: "note", label: "Примечание" },
+    ]},
   ];
+
+  const hasEdits = Object.keys(edits).length > 0;
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-end" onClick={onClose}>
       <div
-        className="bg-white h-full w-full max-w-2xl overflow-y-auto animate-slide-in shadow-2xl"
+        className="bg-white h-full w-full max-w-2xl overflow-y-auto animate-slide-in shadow-2xl flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-[#E0E0E0] px-6 py-4 flex items-center justify-between z-10">
           <div>
-            <p className="text-xs text-[#999] font-mono mb-0.5">{order.id} · {order.createdDate}</p>
-            <h2 className="text-base font-semibold">{order.cargoName || "Новая заявка"}</h2>
+            <p className="text-xs text-[#999] font-mono mb-0.5">{order.order_num} · {order.created_date}</p>
+            <h2 className="text-base font-semibold">{order.cargo_name || "Новая заявка"}</h2>
           </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center hover:bg-[#F0F0EE] transition-colors">
-            <Icon name="X" size={16} />
-          </button>
+          <div className="flex items-center gap-2">
+            {hasEdits && (
+              <button
+                onClick={save}
+                disabled={saving}
+                className="bg-[#111] text-white px-4 py-1.5 text-xs font-medium hover:bg-[#333] transition-colors disabled:opacity-50"
+              >
+                {saving ? "Сохранение..." : "Сохранить"}
+              </button>
+            )}
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center hover:bg-[#F0F0EE] transition-colors">
+              <Icon name="X" size={16} />
+            </button>
+          </div>
         </div>
 
-        {/* Progress bar */}
+        {/* Progress */}
         <div className="px-6 pt-5 pb-4 border-b border-[#F0F0EE]">
           <div className="flex gap-1 mb-2">
             {Array.from({ length: 9 }, (_, i) => (
-              <div
-                key={i}
-                className={`h-1 flex-1 transition-colors ${i < stage ? "bg-[#111]" : "bg-[#E8E8E8]"}`}
-              />
+              <div key={i} className={`h-1 flex-1 transition-colors ${i < stage ? "bg-[#111]" : "bg-[#E8E8E8]"}`} />
             ))}
           </div>
-          <p className="text-[11px] text-[#888]">Этап {stage} из 9 — <span className="text-[#111] font-medium">{STAGE_LABELS[stage]}</span></p>
+          <p className="text-[11px] text-[#888]">
+            Этап {stage} из 9 — <span className="text-[#111] font-medium">{STAGE_LABELS[stage]}</span>
+            <span className="ml-3 text-[#BBB]">Ваша роль: {ROLE_LABELS[user.role]}</span>
+          </p>
         </div>
 
         {/* Stages */}
-        <div className="px-6 py-5 space-y-0">
+        <div className="px-6 py-5 flex-1">
           {STAGES.map((s, idx) => {
             const isCompleted = stage > s.num;
-            const isCurrent = stage === s.num;
-            const isPending = stage < s.num;
+            const isCurrent   = stage === s.num;
+            const isPending   = stage < s.num;
 
             return (
               <div key={s.num} className="flex gap-4">
-                {/* Timeline */}
                 <div className="flex flex-col items-center">
                   <div className={`w-7 h-7 flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5 ${
                     isCompleted ? "bg-[#111] text-white" :
@@ -295,26 +320,34 @@ function OrderDetail({ order, onClose }: { order: Order; onClose: () => void }) 
                   )}
                 </div>
 
-                {/* Content */}
                 <div className={`flex-1 pb-6 ${isPending ? "opacity-40" : ""}`}>
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm font-medium">{s.label}</span>
                     <span className="text-[10px] text-[#999] border border-[#E8E8E8] px-1.5 py-0.5">{s.role}</span>
                     {s.day && <span className="text-[10px] text-[#BBB]">{s.day}</span>}
                   </div>
                   {s.fields.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 mt-2">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                       {s.fields.map(f => (
-                        <div key={f.label}>
-                          <p className="text-[10px] uppercase tracking-wider text-[#AAA]">{f.label}</p>
-                          <p className={`text-sm mt-0.5 ${f.value ? "text-[#111]" : "text-[#CCC]"}`}>
-                            {f.value || "не заполнено"}
-                          </p>
+                        <div key={f.k}>
+                          <p className="text-[10px] uppercase tracking-wider text-[#AAA] mb-1">{f.label}</p>
+                          {canEdit(f.k) && !isPending ? (
+                            <input
+                              className="w-full border border-[#E0E0E0] bg-[#F7F7F5] px-2 py-1.5 text-sm outline-none focus:border-[#111] transition-colors"
+                              value={val(f.k)}
+                              onChange={e => setField(f.k, e.target.value)}
+                              placeholder="—"
+                            />
+                          ) : (
+                            <p className={`text-sm ${val(f.k) ? "text-[#111]" : "text-[#CCC]"}`}>
+                              {val(f.k) || "не заполнено"}
+                            </p>
+                          )}
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-[#999] mt-1 italic">Визирование / утверждение</p>
+                    <p className="text-xs text-[#999] italic">Визирование / утверждение</p>
                   )}
                 </div>
               </div>
@@ -326,12 +359,21 @@ function OrderDetail({ order, onClose }: { order: Order; onClose: () => void }) 
   );
 }
 
-// ─── Компонент: форма создания заявки ────────────────────────────────────────
-function NewOrderForm({ onClose }: { onClose: () => void }) {
-  const [data, setData] = useState({ ...EMPTY_ORDER });
-  const set = (k: keyof typeof EMPTY_ORDER, v: string) => setData(p => ({ ...p, [k]: v }));
+// ── Форма новой заявки ────────────────────────────────────────────────────
+function NewOrderForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [data, setData] = useState({ department: "", applicant_name: "", cargo_name: "", quantity: "", request_time: "", load_place: "", unload_place: "", priority: "" });
+  const [loading, setLoading] = useState(false);
+  const set = (k: keyof typeof data, v: string) => setData(p => ({ ...p, [k]: v }));
 
-  const Field = ({ label, k, placeholder }: { label: string; k: keyof typeof EMPTY_ORDER; placeholder?: string }) => (
+  const submit = async () => {
+    setLoading(true);
+    await apiCreateOrder(data);
+    setLoading(false);
+    onCreated();
+    onClose();
+  };
+
+  const Field = ({ label, k, placeholder }: { label: string; k: keyof typeof data; placeholder?: string }) => (
     <div>
       <label className="block text-[10px] uppercase tracking-wider text-[#999] mb-1">{label}</label>
       <input
@@ -346,22 +388,22 @@ function NewOrderForm({ onClose }: { onClose: () => void }) {
   return (
     <div className="bg-white border border-[#E0E0E0] mb-4 animate-fade-in">
       <div className="px-5 py-3 border-b border-[#F0F0EE] flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider text-[#555]">Новая заявка на перевозку — Этап 1</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-[#555]">Новая заявка · Этап 1</p>
         <span className="text-[10px] text-[#AAA]">Заполняет начальник цеха</span>
       </div>
       <div className="p-5 grid grid-cols-2 gap-4">
         <Field label="Подразделение" k="department" placeholder="Цех №…" />
-        <Field label="Ф.И.О. подающего заявку" k="applicantName" placeholder="Фамилия И.О." />
-        <Field label="Наименование груза" k="cargoName" />
+        <Field label="Ф.И.О. подающего заявку" k="applicant_name" placeholder="Фамилия И.О." />
+        <Field label="Наименование груза" k="cargo_name" />
         <Field label="Кол-во (шт)" k="quantity" placeholder="1" />
-        <Field label="Время подачи" k="requestTime" placeholder="08:00" />
+        <Field label="Время подачи" k="request_time" placeholder="08:00" />
         <Field label="Приоритет (1–99)" k="priority" placeholder="50" />
-        <Field label="Место погрузки" k="loadPlace" />
-        <Field label="Место выгрузки" k="unloadPlace" />
+        <Field label="Место погрузки" k="load_place" />
+        <Field label="Место выгрузки" k="unload_place" />
       </div>
       <div className="px-5 pb-4 flex gap-2">
-        <button className="bg-[#111] text-white px-5 py-2 text-xs font-medium hover:bg-[#333] transition-colors">
-          Создать заявку
+        <button onClick={submit} disabled={loading} className="bg-[#111] text-white px-5 py-2 text-xs font-medium hover:bg-[#333] transition-colors disabled:opacity-50">
+          {loading ? "Создание..." : "Создать заявку"}
         </button>
         <button onClick={onClose} className="border border-[#E0E0E0] px-5 py-2 text-xs font-medium text-[#555] hover:bg-[#F0F0EE] transition-colors">
           Отмена
@@ -371,20 +413,72 @@ function NewOrderForm({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ─── Главный компонент ────────────────────────────────────────────────────────
+// ── Главный экран ──────────────────────────────────────────────────────────
 export default function Index() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("orders");
-  const [filterStage, setFilterStage] = useState<string>("все");
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [filterStatus, setFilterStatus] = useState<string>("все");
   const [showForm, setShowForm] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
-  const filteredOrders = filterStage === "все"
-    ? SAMPLE_ORDERS
-    : filterStage === "выполнено"
-      ? SAMPLE_ORDERS.filter(o => o.done)
-      : filterStage === "в работе"
-        ? SAMPLE_ORDERS.filter(o => !o.done)
-        : SAMPLE_ORDERS;
+  // Проверяем сохранённый токен
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) { setAuthLoading(false); return; }
+    apiMe().then(res => {
+      if (res.user) setUser(res.user);
+      setAuthLoading(false);
+    });
+  }, []);
+
+  const loadOrders = useCallback(async () => {
+    const data = await apiGetOrders();
+    if (Array.isArray(data)) setOrders(data);
+  }, []);
+
+  const loadLogs = useCallback(async () => {
+    const data = await apiGetLogs();
+    if (Array.isArray(data)) setLogs(data);
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    loadOrders();
+  }, [user, loadOrders]);
+
+  useEffect(() => {
+    if (!user || tab !== "history") return;
+    loadLogs();
+  }, [user, tab, loadLogs]);
+
+  const handleLogin = (u: User) => setUser(u);
+  const logout = () => { localStorage.removeItem("token"); setUser(null); };
+
+  const canCreate = user && ["shop_chief", "admin"].includes(user.role);
+
+  const filtered = filterStatus === "все"
+    ? orders
+    : filterStatus === "выполнено" ? orders.filter(o => o.done)
+    : orders.filter(o => !o.done);
+
+  // Статистика
+  const total = orders.length;
+  const done = orders.filter(o => o.done).length;
+  const inProgress = orders.filter(o => !o.done).length;
+  const urgent = orders.filter(o => o.priority !== null && o.priority <= 5 && !o.done).length;
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#F7F7F5] font-ibm flex items-center justify-center">
+        <div className="text-sm text-[#999]">Загрузка...</div>
+      </div>
+    );
+  }
+
+  if (!user) return <LoginScreen onLogin={handleLogin} />;
 
   return (
     <div className="min-h-screen bg-[#F7F7F5] font-ibm text-[#111]">
@@ -398,10 +492,13 @@ export default function Index() {
             <span className="font-semibold text-sm tracking-wide uppercase">ТрансДеталь</span>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-xs text-[#888]">24 апреля 2026</span>
-            <div className="w-8 h-8 rounded-full bg-[#E8E8E8] flex items-center justify-center">
-              <Icon name="User" size={14} className="text-[#555]" />
+            <div className="text-right">
+              <p className="text-xs font-medium">{user.name}</p>
+              <p className="text-[10px] text-[#AAA]">{ROLE_LABELS[user.role]}</p>
             </div>
+            <button onClick={logout} className="w-8 h-8 flex items-center justify-center hover:bg-[#F0F0EE] transition-colors" title="Выйти">
+              <Icon name="LogOut" size={14} className="text-[#888]" />
+            </button>
           </div>
         </div>
       </header>
@@ -413,7 +510,7 @@ export default function Index() {
             { key: "orders",  label: "Заявки",  icon: "Package" },
             { key: "reports", label: "Отчёты",  icon: "BarChart2" },
             { key: "history", label: "История", icon: "Clock" },
-          ] as { key: Tab; label: string; icon: string }[]).map((t) => (
+          ] as { key: Tab; label: string; icon: string }[]).map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
@@ -427,7 +524,7 @@ export default function Index() {
           ))}
         </div>
 
-        {/* ── ЗАЯВКИ ─────────────────────────────────────────────────────── */}
+        {/* ── ЗАЯВКИ ── */}
         {tab === "orders" && (
           <div className="animate-fade-in">
             <div className="flex items-center justify-between mb-4">
@@ -435,60 +532,75 @@ export default function Index() {
                 {["все", "в работе", "выполнено"].map(s => (
                   <button
                     key={s}
-                    onClick={() => setFilterStage(s)}
+                    onClick={() => setFilterStatus(s)}
                     className={`px-4 py-1.5 text-xs font-medium border-r border-[#E0E0E0] last:border-r-0 transition-colors ${
-                      filterStage === s ? "bg-[#111] text-white" : "text-[#666] hover:bg-[#F0F0EE]"
+                      filterStatus === s ? "bg-[#111] text-white" : "text-[#666] hover:bg-[#F0F0EE]"
                     }`}
                   >
                     {s}
                   </button>
                 ))}
               </div>
-              <button
-                onClick={() => setShowForm(!showForm)}
-                className="flex items-center gap-2 bg-[#111] text-white px-4 py-2 text-xs font-medium hover:bg-[#333] transition-colors"
-              >
-                <Icon name="Plus" size={13} />
-                Новая заявка
-              </button>
+              <div className="flex gap-2">
+                <button onClick={loadOrders} className="border border-[#E0E0E0] px-3 py-2 hover:bg-[#F0F0EE] transition-colors" title="Обновить">
+                  <Icon name="RefreshCw" size={13} className="text-[#888]" />
+                </button>
+                {canCreate && (
+                  <button
+                    onClick={() => setShowForm(!showForm)}
+                    className="flex items-center gap-2 bg-[#111] text-white px-4 py-2 text-xs font-medium hover:bg-[#333] transition-colors"
+                  >
+                    <Icon name="Plus" size={13} />
+                    Новая заявка
+                  </button>
+                )}
+              </div>
             </div>
 
-            {showForm && <NewOrderForm onClose={() => setShowForm(false)} />}
+            {showForm && canCreate && (
+              <NewOrderForm onClose={() => setShowForm(false)} onCreated={loadOrders} />
+            )}
 
-            {/* Таблица заявок */}
             <div className="bg-white border border-[#E0E0E0] overflow-x-auto">
-              {/* Заголовок — 2 строки */}
-              <div className="grid grid-cols-[90px_110px_1fr_80px_80px_140px_130px_100px] min-w-[900px] bg-[#F7F7F5] border-b border-[#E0E0E0]">
+              <div className="grid grid-cols-[90px_110px_1fr_70px_70px_160px_150px_110px] min-w-[900px] bg-[#F7F7F5] border-b border-[#E0E0E0]">
                 {["№", "Дата", "Груз / Подразделение", "Кол-во", "Приор.", "Погрузка → Выгрузка", "Водитель", "Этап"].map(h => (
                   <div key={h} className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#999]">{h}</div>
                 ))}
               </div>
 
-              {filteredOrders.map((o, i) => {
+              {filtered.length === 0 && (
+                <div className="py-16 text-center text-sm text-[#BBB]">
+                  {orders.length === 0 ? "Заявок пока нет. Создайте первую." : "Нет заявок по фильтру."}
+                </div>
+              )}
+
+              {filtered.map((o, i) => {
                 const stage = getStage(o);
                 return (
                   <div
                     key={o.id}
                     onClick={() => setSelectedOrder(o)}
-                    className={`grid grid-cols-[90px_110px_1fr_80px_80px_140px_130px_100px] min-w-[900px] border-b border-[#F0F0EE] hover:bg-[#FAFAFA] transition-colors cursor-pointer ${i === filteredOrders.length - 1 ? "border-b-0" : ""}`}
+                    className={`grid grid-cols-[90px_110px_1fr_70px_70px_160px_150px_110px] min-w-[900px] border-b border-[#F0F0EE] hover:bg-[#FAFAFA] transition-colors cursor-pointer ${i === filtered.length - 1 ? "border-b-0" : ""}`}
                   >
-                    <div className="px-3 py-3 text-xs font-mono text-[#888]">{o.id}</div>
-                    <div className="px-3 py-3 text-xs text-[#666]">{o.createdDate}</div>
+                    <div className="px-3 py-3 text-xs font-mono text-[#888]">{o.order_num}</div>
+                    <div className="px-3 py-3 text-xs text-[#666]">{o.created_date}</div>
                     <div className="px-3 py-3">
-                      <p className="text-sm font-medium leading-tight">{o.cargoName}</p>
-                      <p className="text-[11px] text-[#AAA] mt-0.5">{o.department} · {o.applicantName}</p>
+                      <p className="text-sm font-medium leading-tight">{o.cargo_name || <span className="text-[#CCC]">не указан</span>}</p>
+                      <p className="text-[11px] text-[#AAA] mt-0.5">{o.department} {o.applicant_name && `· ${o.applicant_name}`}</p>
                     </div>
-                    <div className="px-3 py-3 text-sm text-[#555]">{o.quantity}</div>
+                    <div className="px-3 py-3 text-sm text-[#555]">{o.quantity || "—"}</div>
                     <div className="px-3 py-3">
-                      <span className={`text-xs font-bold ${Number(o.priority) <= 5 ? "text-red-600" : Number(o.priority) <= 20 ? "text-amber-600" : "text-[#AAA]"}`}>
-                        {o.priority || "—"}
+                      <span className={`text-xs font-bold ${o.priority !== null && o.priority <= 5 ? "text-red-600" : o.priority !== null && o.priority <= 20 ? "text-amber-600" : "text-[#AAA]"}`}>
+                        {o.priority ?? "—"}
                       </span>
                     </div>
                     <div className="px-3 py-3 text-xs text-[#666]">
-                      <p className="truncate">{o.loadPlace || "—"}</p>
-                      <p className="truncate text-[#AAA]">{o.unloadPlace || "—"}</p>
+                      <p className="truncate">{o.load_place || "—"}</p>
+                      <p className="truncate text-[#AAA]">{o.unload_place || "—"}</p>
                     </div>
-                    <div className="px-3 py-3 text-xs text-[#555]">{o.driverName || <span className="text-[#CCC]">не назначен</span>}</div>
+                    <div className="px-3 py-3 text-xs text-[#555]">
+                      {o.driver_name || <span className="text-[#CCC]">не назначен</span>}
+                    </div>
                     <div className="px-3 py-3">
                       <span className={`text-[10px] font-medium px-2 py-0.5 border ${STAGE_COLOR[stage]}`}>
                         {STAGE_LABELS[stage]}
@@ -499,16 +611,21 @@ export default function Index() {
               })}
             </div>
             <p className="text-[11px] text-[#AAA] mt-2">
-              Показано {filteredOrders.length} из {SAMPLE_ORDERS.length} заявок · нажмите на строку, чтобы открыть
+              Показано {filtered.length} из {orders.length} · нажмите на строку для просмотра и заполнения
             </p>
           </div>
         )}
 
-        {/* ── ОТЧЁТЫ ─────────────────────────────────────────────────────── */}
+        {/* ── ОТЧЁТЫ ── */}
         {tab === "reports" && (
           <div className="animate-fade-in">
-            <div className="grid grid-cols-3 gap-px bg-[#E0E0E0] border border-[#E0E0E0] mb-6">
-              {STATS.map(s => (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-[#E0E0E0] border border-[#E0E0E0] mb-6">
+              {[
+                { label: "Всего заявок",      value: String(total),      sub: "в базе" },
+                { label: "Выполнено",          value: String(done),       sub: total ? `${Math.round(done/total*100)}%` : "0%" },
+                { label: "В работе",           value: String(inProgress), sub: "активных" },
+                { label: "Срочных (приор. ≤5)", value: String(urgent),    sub: "требуют внимания" },
+              ].map(s => (
                 <div key={s.label} className="bg-white px-6 py-5">
                   <p className="text-[10px] uppercase tracking-wider text-[#999] mb-1">{s.label}</p>
                   <p className="text-3xl font-semibold tracking-tight">{s.value}</p>
@@ -517,56 +634,61 @@ export default function Index() {
               ))}
             </div>
 
+            {/* Этапы */}
             <div className="bg-white border border-[#E0E0E0] p-6 mb-6">
-              <p className="text-[10px] uppercase tracking-wider text-[#999] mb-6">Динамика перевозок</p>
-              <div className="flex items-end gap-6 h-36">
-                {MONTHLY.map(m => (
-                  <div key={m.month} className="flex-1 flex flex-col items-center gap-2">
-                    <span className="text-xs font-semibold text-[#111]">{m.count}</span>
-                    <div className="w-full bg-[#111]" style={{ height: `${(m.count / maxCount) * 100}%` }} />
-                    <span className="text-[10px] text-[#888]">{m.month}</span>
+              <p className="text-[10px] uppercase tracking-wider text-[#999] mb-4">Заявки по этапам</p>
+              {Array.from({ length: 9 }, (_, i) => i + 1).map(s => {
+                const count = orders.filter(o => getStage(o) === s).length;
+                const pct = total ? (count / total) * 100 : 0;
+                return (
+                  <div key={s} className="flex items-center gap-4 mb-2 last:mb-0">
+                    <span className="text-xs text-[#888] w-4 shrink-0">{s}</span>
+                    <span className="text-xs w-36 shrink-0">{STAGE_LABELS[s]}</span>
+                    <div className="flex-1 h-1.5 bg-[#F0F0EE]">
+                      <div className="h-full bg-[#111]" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-xs text-[#AAA] w-6 text-right">{count}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Срочные */}
+            {urgent > 0 && (
+              <div className="bg-white border border-[#E0E0E0] p-6">
+                <p className="text-[10px] uppercase tracking-wider text-[#999] mb-4">Срочные заявки (приоритет 1–5)</p>
+                {orders.filter(o => o.priority !== null && o.priority <= 5 && !o.done).map(o => (
+                  <div key={o.id} onClick={() => { setTab("orders"); setSelectedOrder(o); }} className="flex items-center gap-4 py-2.5 border-b border-[#F0F0EE] last:border-b-0 cursor-pointer hover:bg-[#FAFAFA] -mx-2 px-2">
+                    <span className="text-red-600 font-bold text-sm w-6">{o.priority}</span>
+                    <span className="text-sm flex-1">{o.cargo_name || o.order_num}</span>
+                    <span className="text-xs text-[#888]">{o.department}</span>
+                    <span className={`text-[10px] font-medium px-2 py-0.5 border ${STAGE_COLOR[getStage(o)]}`}>{STAGE_LABELS[getStage(o)]}</span>
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div className="bg-white border border-[#E0E0E0] p-6">
-              <p className="text-[10px] uppercase tracking-wider text-[#999] mb-4">Топ водителей (апрель)</p>
-              {[
-                { name: "Иванов К.П.",  count: 58, pct: 100 },
-                { name: "Петров М.С.", count: 51, pct: 87 },
-                { name: "Сидоров А.В.", count: 44, pct: 75 },
-                { name: "Новиков Р.Е.", count: 38, pct: 65 },
-                { name: "Козлов Д.И.", count: 23, pct: 39 },
-              ].map(d => (
-                <div key={d.name} className="flex items-center gap-4 mb-3 last:mb-0">
-                  <span className="text-sm w-36 shrink-0">{d.name}</span>
-                  <div className="flex-1 h-1.5 bg-[#F0F0EE]">
-                    <div className="h-full bg-[#111]" style={{ width: `${d.pct}%` }} />
-                  </div>
-                  <span className="text-xs text-[#888] w-14 text-right">{d.count} рейс.</span>
-                </div>
-              ))}
-            </div>
+            )}
           </div>
         )}
 
-        {/* ── ИСТОРИЯ ────────────────────────────────────────────────────── */}
+        {/* ── ИСТОРИЯ ── */}
         {tab === "history" && (
           <div className="animate-fade-in">
             <div className="bg-white border border-[#E0E0E0] overflow-x-auto">
-              <div className="grid grid-cols-[180px_1fr_220px_90px] min-w-[700px] border-b border-[#E0E0E0] bg-[#F7F7F5]">
+              <div className="grid grid-cols-[180px_1fr_220px_100px] min-w-[700px] border-b border-[#E0E0E0] bg-[#F7F7F5]">
                 {["Пользователь", "Действие", "Объект", "Время"].map(h => (
                   <div key={h} className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#999]">{h}</div>
                 ))}
               </div>
-              {LOGS.map((l, i) => (
-                <div key={l.id} className={`grid grid-cols-[180px_1fr_220px_90px] min-w-[700px] border-b border-[#F0F0EE] hover:bg-[#FAFAFA] ${i === LOGS.length - 1 ? "border-b-0" : ""}`}>
+              {logs.length === 0 && (
+                <div className="py-12 text-center text-sm text-[#BBB]">История пуста</div>
+              )}
+              {logs.map((l, i) => (
+                <div key={i} className={`grid grid-cols-[180px_1fr_220px_100px] min-w-[700px] border-b border-[#F0F0EE] hover:bg-[#FAFAFA] ${i === logs.length - 1 ? "border-b-0" : ""}`}>
                   <div className="px-4 py-3 flex items-center gap-2">
                     <div className="w-5 h-5 rounded-full bg-[#E8E8E8] flex items-center justify-center shrink-0">
                       <Icon name="User" size={10} className="text-[#666]" />
                     </div>
-                    <span className="text-xs text-[#555] truncate">{l.user}</span>
+                    <span className="text-xs text-[#555] truncate">{l.user_name}</span>
                   </div>
                   <div className="px-4 py-3 text-sm">{l.action}</div>
                   <div className="px-4 py-3 text-xs font-mono text-[#888]">{l.target}</div>
@@ -574,14 +696,18 @@ export default function Index() {
                 </div>
               ))}
             </div>
-            <p className="text-[11px] text-[#AAA] mt-2">Последние {LOGS.length} событий · обновлено только что</p>
+            <p className="text-[11px] text-[#AAA] mt-2">Последние {logs.length} событий</p>
           </div>
         )}
       </div>
 
-      {/* Детальный просмотр заявки */}
       {selectedOrder && (
-        <OrderDetail order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+        <OrderDetail
+          order={selectedOrder}
+          user={user}
+          onClose={() => setSelectedOrder(null)}
+          onSaved={loadOrders}
+        />
       )}
     </div>
   );

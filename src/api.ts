@@ -52,3 +52,8 @@ export async function apiGetLogs() {
   const r = await fetch(`${URLS.orders}?action=logs`, { headers: authHeaders() });
   return r.json();
 }
+
+export async function apiGetRefs() {
+  const r = await fetch(`${URLS.orders}?action=refs`, { headers: authHeaders() });
+  return r.json();
+}

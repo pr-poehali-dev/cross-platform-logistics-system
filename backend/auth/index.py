@@ -1,4 +1,4 @@
-"""Авторизация пользователей: вход и проверка токена"""
+"""Авторизация: вход, проверка токена, возврат данных пользователя включая подразделение"""
 import json, os, secrets
 import psycopg2
 
@@ -20,7 +20,7 @@ def handler(event: dict, context) -> dict:
     qs = event.get("queryStringParameters") or {}
     action = qs.get("action", "login")
 
-    # POST ?action=login (default)
+    # POST — вход
     if method == "POST" and action == "login":
         body = json.loads(event.get("body") or "{}")
         login = body.get("login", "").strip()
@@ -29,7 +29,10 @@ def handler(event: dict, context) -> dict:
         conn = get_conn()
         cur = conn.cursor()
         cur.execute(
-            f"SELECT id, name, role, password_hash FROM {SCHEMA}.users WHERE login = %s",
+            f"""SELECT u.id, u.name, u.role, u.password_hash, u.department_id, d.name as dept_name
+                FROM {SCHEMA}.users u
+                LEFT JOIN {SCHEMA}.departments d ON d.id = u.department_id
+                WHERE u.login = %s""",
             (login,)
         )
         row = cur.fetchone()
@@ -37,7 +40,7 @@ def handler(event: dict, context) -> dict:
             conn.close()
             return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Неверный логин или пароль"})}
 
-        user_id, name, role, _ = row
+        user_id, name, role, _, dept_id, dept_name = row
         token = secrets.token_hex(32)
         cur.execute(
             f"INSERT INTO {SCHEMA}.sessions (token, user_id) VALUES (%s, %s)",
@@ -48,10 +51,16 @@ def handler(event: dict, context) -> dict:
         return {
             "statusCode": 200,
             "headers": CORS,
-            "body": json.dumps({"token": token, "user": {"id": user_id, "name": name, "role": role}})
+            "body": json.dumps({
+                "token": token,
+                "user": {
+                    "id": user_id, "name": name, "role": role,
+                    "department_id": dept_id, "department_name": dept_name or ""
+                }
+            })
         }
 
-    # GET ?action=me — проверка токена
+    # GET ?action=me — проверка сессии
     if method == "GET" and action == "me":
         token = event.get("headers", {}).get("x-auth-token", "")
         if not token:
@@ -60,8 +69,10 @@ def handler(event: dict, context) -> dict:
         conn = get_conn()
         cur = conn.cursor()
         cur.execute(
-            f"""SELECT u.id, u.name, u.role FROM {SCHEMA}.sessions s
+            f"""SELECT u.id, u.name, u.role, u.department_id, d.name as dept_name
+                FROM {SCHEMA}.sessions s
                 JOIN {SCHEMA}.users u ON u.id = s.user_id
+                LEFT JOIN {SCHEMA}.departments d ON d.id = u.department_id
                 WHERE s.token = %s""",
             (token,)
         )
@@ -70,11 +81,16 @@ def handler(event: dict, context) -> dict:
         if not row:
             return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Токен недействителен"})}
 
-        user_id, name, role = row
+        user_id, name, role, dept_id, dept_name = row
         return {
             "statusCode": 200,
             "headers": CORS,
-            "body": json.dumps({"user": {"id": user_id, "name": name, "role": role}})
+            "body": json.dumps({
+                "user": {
+                    "id": user_id, "name": name, "role": role,
+                    "department_id": dept_id, "department_name": dept_name or ""
+                }
+            })
         }
 
     return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "Not found"})}

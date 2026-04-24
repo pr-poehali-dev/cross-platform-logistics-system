@@ -195,8 +195,12 @@ def handler(event: dict, context) -> dict:
         department = user["department_name"]
         applicant_name = user["name"]
 
+        def to_int(v):
+            try: return int(v) if v else None
+            except: return None
+
         # col3 — груз из справочника
-        cargo_type_id = body.get("cargo_type_id")
+        cargo_type_id = to_int(body.get("cargo_type_id"))
         cargo_name = body.get("cargo_name", "")
         if cargo_type_id:
             cur.execute(f"SELECT name FROM {SCHEMA}.cargo_types WHERE id = %s", (cargo_type_id,))
@@ -205,8 +209,8 @@ def handler(event: dict, context) -> dict:
                 cargo_name = r[0]
 
         # col6,7 — место из справочника
-        load_location_id = body.get("load_location_id")
-        unload_location_id = body.get("unload_location_id")
+        load_location_id  = to_int(body.get("load_location_id"))
+        unload_location_id = to_int(body.get("unload_location_id"))
         load_place = ""
         unload_place = ""
         if load_location_id:
@@ -223,6 +227,7 @@ def handler(event: dict, context) -> dict:
         raw_date = body.get("execution_date") or None
         execution_date = raw_date[:10] if raw_date else None
         note = body.get("note", "")
+        department_id = to_int(user.get("department_id"))
 
         cur.execute(
             f"""INSERT INTO {SCHEMA}.orders
@@ -232,7 +237,7 @@ def handler(event: dict, context) -> dict:
                  note, created_by, stage)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
                 RETURNING id""",
-            (order_num, department, user["department_id"], applicant_name,
+            (order_num, department, department_id, applicant_name,
              cargo_name, cargo_type_id, quantity, execution_date,
              load_place, load_location_id, unload_place, unload_location_id,
              note, user["id"])
@@ -277,8 +282,17 @@ def handler(event: dict, context) -> dict:
             return {"statusCode": 403, "headers": CORS,
                     "body": json.dumps({"error": f"Заявка ещё не достигла этапа доступного для вашей роли. Текущий этап: {current_stage}"})}
 
+        def to_int(v):
+            try: return int(v) if v else None
+            except: return None
+
         allowed = ROLE_FIELDS.get(user["role"], set())
         fields_to_update = {k: v for k, v in body.items() if k in allowed and k != "id"}
+
+        # Приводим integer FK к int
+        for int_field in ("vehicle_id", "driver_id"):
+            if int_field in fields_to_update:
+                fields_to_update[int_field] = to_int(fields_to_update[int_field])
 
         # Автозаполнение подписи — если роль sender или receiver, подпись = имя пользователя
         if user["role"] == "sender" and "sender_sign" not in fields_to_update:

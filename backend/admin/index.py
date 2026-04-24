@@ -9,7 +9,7 @@ SCHEMA = "t_p68114469_cross_platform_logis"
 CORS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, X-Auth-Token",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
 }
 
 ROLE_CHOICES = ["shop_chief", "ppb", "tc", "tc_master", "driver", "sender", "receiver", "admin"]

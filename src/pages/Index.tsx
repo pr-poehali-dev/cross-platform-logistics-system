@@ -794,7 +794,7 @@ export default function Index() {
                       {o.driver_name || <span className="text-[#CCC]">не назначен</span>}
                     </div>
                     <div className="px-3 py-3">
-                      <span className={`text-[10px] font-medium px-2 py-0.5 border ${STAGE_COLOR[s]}`}>
+                      <span className={`text-[10px] font-medium px-2 py-0.5 border inline-block w-[10ch] text-center leading-tight break-words whitespace-normal ${STAGE_COLOR[s]}`}>
                         {refs.stage_labels?.[s] ?? STAGE_LABELS[s]}
                       </span>
                     </div>

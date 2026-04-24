@@ -15,7 +15,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 const ROLES = Object.keys(ROLE_LABELS);
 
-type Section = "cargo_types" | "locations" | "vehicles" | "departments" | "users" | "role_labels";
+type Section = "cargo_types" | "locations" | "vehicles" | "departments" | "users" | "role_labels" | "stage_labels";
 const SECTIONS: { key: Section; label: string; icon: string }[] = [
   { key: "departments",  label: "Подразделения",   icon: "Building2" },
   { key: "cargo_types",  label: "Грузы",            icon: "Package" },
@@ -23,6 +23,7 @@ const SECTIONS: { key: Section; label: string; icon: string }[] = [
   { key: "vehicles",     label: "Техника",           icon: "Truck" },
   { key: "users",        label: "Пользователи",      icon: "Users" },
   { key: "role_labels",  label: "Группы",            icon: "ShieldCheck" },
+  { key: "stage_labels", label: "Статусы",           icon: "Tag" },
 ];
 
 // ── Редактируемая строка справочника ───────────────────────────────────────
@@ -337,6 +338,74 @@ function UsersPanel() {
   );
 }
 
+// ── Редактирование названий статусов ──────────────────────────────────────
+interface StageLabelItem { stage: number; label: string; }
+
+function StageLabelsPanel() {
+  const [items, setItems] = useState<StageLabelItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [val, setVal] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const res = await apiAdminList("stage_labels");
+    setItems(Array.isArray(res) ? res as StageLabelItem[] : []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const startEdit = (item: StageLabelItem) => { setEditing(item.stage); setVal(item.label); };
+  const cancel = () => { setEditing(null); setVal(""); };
+
+  const save = async (stage: number) => {
+    if (!val.trim()) return;
+    setSaving(true);
+    await apiAdminEdit("stage_labels", { stage, label: val.trim() });
+    setSaving(false);
+    setEditing(null);
+    load();
+  };
+
+  if (loading) return <p className="text-sm text-[#AAA]">Загрузка...</p>;
+
+  return (
+    <div className="bg-white border border-[#E0E0E0]">
+      {items.map((item) => (
+        <div key={item.stage} className="flex items-center gap-3 px-4 py-3 border-b border-[#F0F0EE] last:border-b-0 group">
+          <span className="text-[10px] font-mono text-[#AAA] w-8 shrink-0">#{item.stage}</span>
+          {editing === item.stage ? (
+            <>
+              <input autoFocus
+                className="flex-1 border border-[#E0E0E0] bg-[#F7F7F5] px-2.5 py-1 text-sm outline-none focus:border-[#111]"
+                value={val} onChange={e => setVal(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") save(item.stage); if (e.key === "Escape") cancel(); }}
+              />
+              <button onClick={() => save(item.stage)} disabled={saving}
+                className="bg-[#111] text-white px-3 py-1 text-xs hover:bg-[#333] disabled:opacity-50">
+                {saving ? "..." : "OK"}
+              </button>
+              <button onClick={cancel}
+                className="border border-[#E0E0E0] px-3 py-1 text-xs hover:bg-[#F0F0EE]">Отмена</button>
+            </>
+          ) : (
+            <>
+              <span className="flex-1 text-sm">{item.label}</span>
+              <button onClick={() => startEdit(item)}
+                className="flex items-center gap-1 px-2.5 py-1 text-[10px] border border-[#E0E0E0] hover:bg-[#F0F0EE] opacity-0 group-hover:opacity-100 transition-opacity">
+                <Icon name="Pencil" size={10} />
+                Изменить
+              </button>
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Редактирование названий групп ─────────────────────────────────────────
 interface RoleLabelItem { role: string; label: string; }
 
@@ -454,6 +523,8 @@ export default function Admin({ onBack }: { onBack: () => void }) {
                 ? "Управление учётными записями пользователей"
                 : section === "role_labels"
                 ? "Отображаемые названия групп пользователей в интерфейсе"
+                : section === "stage_labels"
+                ? "Отображаемые названия статусов заявок в интерфейсе"
                 : "Значения появятся в выпадающих списках при создании заявки"}
             </p>
           </div>
@@ -462,6 +533,8 @@ export default function Admin({ onBack }: { onBack: () => void }) {
             <UsersPanel />
           ) : section === "role_labels" ? (
             <RoleLabelsPanel />
+          ) : section === "stage_labels" ? (
+            <StageLabelsPanel />
           ) : (
             <RefPanel
               resource={section}

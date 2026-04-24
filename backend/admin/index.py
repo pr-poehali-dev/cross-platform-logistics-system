@@ -182,6 +182,26 @@ def handler(event: dict, context) -> dict:
             conn.close()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 
+    # ── Статусы (stage_labels) ────────────────────────────────────────────────
+    if resource == "stage_labels":
+        if action == "list":
+            cur.execute(f"SELECT stage, label FROM {SCHEMA}.stage_labels ORDER BY stage")
+            rows = [{"stage": r[0], "label": r[1]} for r in cur.fetchall()]
+            conn.close()
+            return {"statusCode": 200, "headers": CORS,
+                    "body": json.dumps(rows, ensure_ascii=False)}
+
+        if action == "edit" and method == "POST":
+            stage = body.get("stage")
+            label = body.get("label", "").strip()
+            if stage is None or not label:
+                conn.close()
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Нужны stage и label"})}
+            cur.execute(f"UPDATE {SCHEMA}.stage_labels SET label = %s WHERE stage = %s", (label, stage))
+            conn.commit()
+            conn.close()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
     # ── Группы (role_labels) ──────────────────────────────────────────────────
     if resource == "role_labels":
         if action == "list":

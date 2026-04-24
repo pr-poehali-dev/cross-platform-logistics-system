@@ -21,6 +21,7 @@ interface Refs {
   vehicles: RefItem[];
   drivers: RefItem[];
   role_labels?: Record<string, string>;
+  stage_labels?: Record<number, string>;
 }
 
 interface Order {
@@ -410,7 +411,7 @@ function OrderPanel({ order, user, refs, onClose, onSaved }: {
           </div>
           <div className="flex items-center justify-between">
             <p className="text-[11px] text-[#888]">
-              Этап {stage} из 9 — <span className="text-[#111] font-medium">{STAGE_LABELS[stage]}</span>
+              Этап {stage} из 9 — <span className="text-[#111] font-medium">{refs.stage_labels?.[stage] ?? STAGE_LABELS[stage]}</span>
             </p>
             {stageBlocked && (
               <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5">
@@ -628,7 +629,14 @@ export default function Index() {
 
   const loadRefs = useCallback(async () => {
     const data = await apiGetRefs();
-    if (data.vehicles) setRefs(data);
+    if (data.vehicles) {
+      if (data.stage_labels) {
+        const normalized: Record<number, string> = {};
+        Object.entries(data.stage_labels as Record<string, string>).forEach(([k, v]) => { normalized[Number(k)] = v; });
+        data.stage_labels = normalized;
+      }
+      setRefs(data);
+    }
   }, []);
 
   const loadLogs = useCallback(async () => {
@@ -787,7 +795,7 @@ export default function Index() {
                     </div>
                     <div className="px-3 py-3">
                       <span className={`text-[10px] font-medium px-2 py-0.5 border ${STAGE_COLOR[s]}`}>
-                        {STAGE_LABELS[s]}
+                        {refs.stage_labels?.[s] ?? STAGE_LABELS[s]}
                       </span>
                     </div>
                   </div>
@@ -825,7 +833,7 @@ export default function Index() {
                 return (
                   <div key={s} className="flex items-center gap-3 mb-2 last:mb-0">
                     <span className="text-[10px] text-[#888] w-4">{s}</span>
-                    <span className="text-xs w-36 shrink-0">{STAGE_LABELS[s]}</span>
+                    <span className="text-xs w-36 shrink-0">{refs.stage_labels?.[s] ?? STAGE_LABELS[s]}</span>
                     <div className="flex-1 h-1.5 bg-[#F0F0EE]">
                       <div className="h-full bg-[#111] transition-all" style={{ width: `${pct}%` }} />
                     </div>

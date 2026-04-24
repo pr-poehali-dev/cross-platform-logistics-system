@@ -444,7 +444,8 @@ function OrderPanel({ order, user, refs, onClose, onSaved }: {
             </div>
           </section>
 
-          {/* Блок 2: ППБ — приоритет (кол. 8) */}
+          {/* Блок 2: ППБ — приоритет (кол. 8) — скрыт для начальника цеха */}
+          {user.role !== "shop_chief" && (
           <section className={stage < 1 ? "opacity-40 pointer-events-none" : ""}>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[#999] mb-3 flex items-center gap-2">
               <span className={`w-5 h-5 flex items-center justify-center text-[9px] ${stage >= 2 ? "bg-[#111] text-white" : "bg-[#E8E8E8] text-[#999]"}`}>2</span>
@@ -454,6 +455,7 @@ function OrderPanel({ order, user, refs, onClose, onSaved }: {
               <Input label="Приоритет 1–99 (кол. 8)" k="priority" type="number" roleFields={ppbFields} />
             </div>
           </section>
+          )}
 
           {/* Блок 3: ТЦ — транспорт (кол. 9) */}
           <section className={stage < 2 ? "opacity-40 pointer-events-none" : ""}>

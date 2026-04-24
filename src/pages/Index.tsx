@@ -20,6 +20,7 @@ interface Refs {
   locations: RefItem[];
   vehicles: RefItem[];
   drivers: RefItem[];
+  role_labels?: Record<string, string>;
 }
 
 interface Order {
@@ -685,7 +686,7 @@ export default function Index() {
           <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
               <p className="text-xs font-medium">{user.name}</p>
-              <p className="text-[10px] text-[#AAA]">{ROLE_LABELS[user.role]} · {user.department_name}</p>
+              <p className="text-[10px] text-[#AAA]">{(refs.role_labels?.[user.role]) ?? ROLE_LABELS[user.role]} · {user.department_name}</p>
             </div>
             {user.role === "admin" && (
               <button onClick={() => setShowAdmin(true)} title="Администрирование"

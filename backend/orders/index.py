@@ -138,10 +138,15 @@ def handler(event: dict, context) -> dict:
         cur.execute(f"SELECT id, name FROM {SCHEMA}.users WHERE role = 'driver' ORDER BY name")
         drivers = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
 
+        # названия групп
+        cur.execute(f"SELECT role, label FROM {SCHEMA}.role_labels")
+        role_labels = {r[0]: r[1] for r in cur.fetchall()}
+
         conn.close()
         return {"statusCode": 200, "headers": CORS, "body": json.dumps(
             {"departments": departments, "cargo_types": cargo_types,
-             "locations": locations, "vehicles": vehicles, "drivers": drivers},
+             "locations": locations, "vehicles": vehicles, "drivers": drivers,
+             "role_labels": role_labels},
             ensure_ascii=False
         )}
 

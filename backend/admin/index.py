@@ -182,5 +182,25 @@ def handler(event: dict, context) -> dict:
             conn.close()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 
+    # ── Группы (role_labels) ──────────────────────────────────────────────────
+    if resource == "role_labels":
+        if action == "list":
+            cur.execute(f"SELECT role, label FROM {SCHEMA}.role_labels ORDER BY role")
+            rows = [{"role": r[0], "label": r[1]} for r in cur.fetchall()]
+            conn.close()
+            return {"statusCode": 200, "headers": CORS,
+                    "body": json.dumps(rows, ensure_ascii=False)}
+
+        if action == "edit" and method == "POST":
+            role = body.get("role", "").strip()
+            label = body.get("label", "").strip()
+            if not role or not label:
+                conn.close()
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Нужны role и label"})}
+            cur.execute(f"UPDATE {SCHEMA}.role_labels SET label = %s WHERE role = %s", (label, role))
+            conn.commit()
+            conn.close()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
     conn.close()
     return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "Не найдено"})}

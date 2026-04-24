@@ -156,6 +156,7 @@ function RefPanel({ resource, label }: { resource: Section; label: string }) {
 function UsersPanel() {
   const [users, setUsers] = useState<UserItem[]>([]);
   const [departments, setDepartments] = useState<RefItem[]>([]);
+  const [roleLabels, setRoleLabels] = useState<Record<string, string>>(ROLE_LABELS);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editUser, setEditUser] = useState<UserItem | null>(null);
@@ -165,9 +166,14 @@ function UsersPanel() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [u, d] = await Promise.all([apiAdminList("users"), apiAdminList("departments")]);
+    const [u, d, rl] = await Promise.all([apiAdminList("users"), apiAdminList("departments"), apiAdminList("role_labels")]);
     if (Array.isArray(u)) setUsers(u);
     if (Array.isArray(d)) setDepartments(d);
+    if (Array.isArray(rl)) {
+      const map: Record<string, string> = { ...ROLE_LABELS };
+      (rl as { role: string; label: string }[]).forEach(r => { map[r.role] = r.label; });
+      setRoleLabels(map);
+    }
     setLoading(false);
   }, []);
 
@@ -263,7 +269,7 @@ function UsersPanel() {
               <label className="block text-[10px] uppercase tracking-wider text-[#999] mb-1">Роль</label>
               <select className="w-full border border-[#E0E0E0] bg-[#F7F7F5] px-3 py-2 text-sm outline-none focus:border-[#111]"
                 value={form.role} onChange={e => set("role", e.target.value)}>
-                {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                {ROLES.map(r => <option key={r} value={r}>{roleLabels[r] ?? r}</option>)}
               </select>
             </div>
             <div>
@@ -296,7 +302,7 @@ function UsersPanel() {
         <div key={role} className="mb-5">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[#999] mb-2 flex items-center gap-2">
             <Icon name="Users" size={11} />
-            {ROLE_LABELS[role]}
+            {roleLabels[role] ?? role}
             <span className="font-normal text-[#CCC]">({groupedUsers[role].length})</span>
           </p>
           <div className="bg-white border border-[#E0E0E0]">

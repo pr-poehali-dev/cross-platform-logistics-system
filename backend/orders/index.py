@@ -114,7 +114,7 @@ def handler(event: dict, context) -> dict:
     method = event.get("httpMethod", "GET")
     qs = event.get("queryStringParameters") or {}
     action = qs.get("action", "list")
-    token = event.get("headers", {}).get("x-auth-token", "")
+    token = event.get("headers", {}).get("x-authorization", "")
 
     conn = get_conn()
     cur = conn.cursor()

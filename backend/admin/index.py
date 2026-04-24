@@ -44,7 +44,7 @@ def handler(event: dict, context) -> dict:
     qs = event.get("queryStringParameters") or {}
     resource = qs.get("resource", "")   # cargo_types | locations | vehicles | departments | users
     action = qs.get("action", "list")   # list | add | edit | delete
-    token = event.get("headers", {}).get("x-auth-token", "")
+    token = event.get("headers", {}).get("x-authorization", "")
 
     conn = get_conn()
     cur = conn.cursor()

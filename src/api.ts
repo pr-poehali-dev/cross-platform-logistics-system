@@ -9,7 +9,7 @@ function getToken() {
 }
 
 function authHeaders() {
-  return { "Content-Type": "application/json", "X-Auth-Token": getToken() };
+  return { "Content-Type": "application/json", "Authorization": getToken() };
 }
 
 export async function apiLogin(login: string, password: string) {

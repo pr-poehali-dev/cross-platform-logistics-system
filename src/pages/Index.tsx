@@ -64,7 +64,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const STAGE_LABELS: Record<number, string> = {
-  1: "Новая", 2: "У ППБ", 3: "ТЦ", 4: "Водитель назначен",
+  1: "Новая", 2: "У ППБ", 3: "ТЦ", 4: "Назначена",
   5: "Погрузка", 6: "Погрузка", 7: "В пути", 8: "Разгрузка", 9: "Выполнено",
 };
 const STAGE_COLOR: Record<number, string> = {

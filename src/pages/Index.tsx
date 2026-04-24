@@ -92,8 +92,8 @@ const ROLE_ALLOWED_FIELDS: Record<string, string[]> = {
   tc_master:  ["driver_name", "driver_id"],
   driver:     ["arrival_load_time", "load_start_time", "arrival_unload_time", "unload_start_time"],
   sender:     ["departure_load_time", "sender_sign"],
-  receiver:   ["departure_unload_time", "receiver_sign", "done"],
-  shop_chief: ["note"],
+  receiver:   ["departure_unload_time", "receiver_sign"],
+  shop_chief: ["note", "done"],
   admin:      ["cargo_type_id", "cargo_name", "quantity", "execution_date", "load_location_id",
                "load_place", "unload_location_id", "unload_place", "priority", "vehicle_id",
                "vehicle_model", "driver_name", "driver_id", "arrival_load_time", "load_start_time",
@@ -563,7 +563,7 @@ function OrderPanel({ order, user, refs, onClose, onSaved }: {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-[#AAA] mb-0.5">Статус выполнения (кол. 20)</p>
-                {user.role === "receiver" && editable && stage >= 7 ? (
+                {user.role === "shop_chief" && editable ? (
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={Boolean(fields["done"] !== undefined ? fields["done"] : order.done)}
                       onChange={e => set("done", e.target.checked)}

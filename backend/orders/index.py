@@ -31,8 +31,8 @@ ROLE_FIELDS = {
     "driver":   {"arrival_load_time", "load_start_time",
                  "arrival_unload_time", "unload_start_time"},
     "sender":   {"departure_load_time", "sender_sign"},
-    "receiver": {"departure_unload_time", "receiver_sign", "done"},
-    "shop_chief": {"note"},
+    "receiver": {"departure_unload_time", "receiver_sign"},
+    "shop_chief": {"note", "done"},
     "admin":    {
         "cargo_type_id", "cargo_name", "quantity", "execution_date",
         "load_location_id", "load_place", "unload_location_id", "unload_place",

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
 import { apiLogin, apiMe, apiGetOrders, apiCreateOrder, apiUpdateOrder, apiGetLogs, apiGetRefs } from "@/api";
+import Admin from "@/pages/Admin";
 
 type Tab = "orders" | "reports" | "history";
 
@@ -573,6 +574,7 @@ function OrderPanel({ order, user, refs, onClose, onSaved }: {
 export default function Index() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [showAdmin, setShowAdmin] = useState(false);
   const [tab, setTab] = useState<Tab>("orders");
   const [orders, setOrders] = useState<Order[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -637,7 +639,10 @@ export default function Index() {
 
   if (!user) return <LoginScreen onLogin={u => setUser(u)} />;
 
-  // Начальник цеха — сначала форма создания, потом список
+  if (showAdmin && user.role === "admin") {
+    return <Admin onBack={() => { setShowAdmin(false); loadRefs(); }} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#F7F7F5] font-ibm text-[#111]">
       {/* Header */}
@@ -649,11 +654,17 @@ export default function Index() {
             </div>
             <span className="font-semibold text-sm tracking-wide uppercase">ТрансДеталь</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
               <p className="text-xs font-medium">{user.name}</p>
               <p className="text-[10px] text-[#AAA]">{ROLE_LABELS[user.role]} · {user.department_name}</p>
             </div>
+            {user.role === "admin" && (
+              <button onClick={() => setShowAdmin(true)} title="Администрирование"
+                className="w-8 h-8 flex items-center justify-center hover:bg-[#F0F0EE] transition-colors">
+                <Icon name="Settings" size={14} className="text-[#888]" />
+              </button>
+            )}
             <button onClick={logout} title="Выйти"
               className="w-8 h-8 flex items-center justify-center hover:bg-[#F0F0EE] transition-colors">
               <Icon name="LogOut" size={14} className="text-[#888]" />

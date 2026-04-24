@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "List without token returns 403",
+      "method": "GET",
+      "path": "/?resource=cargo_types&action=list",
+      "expectedStatus": 403,
+      "expectedBody": "string",
+      "bodyMatcher": "partial"
+    }
+  ]
+}

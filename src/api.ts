@@ -1,6 +1,7 @@
 const URLS = {
   auth:   "https://functions.poehali.dev/abfcec0e-8a07-46c1-a180-390e2111a31a",
   orders: "https://functions.poehali.dev/78dd637d-8917-4fc3-a0f5-3ad6988bbf28",
+  admin:  "https://functions.poehali.dev/2ba01886-cbb5-4e89-a6b7-2033a13a3533",
 };
 
 function getToken() {
@@ -55,5 +56,32 @@ export async function apiGetLogs() {
 
 export async function apiGetRefs() {
   const r = await fetch(`${URLS.orders}?action=refs`, { headers: authHeaders() });
+  return r.json();
+}
+
+// ── Admin API ──────────────────────────────────────────────────────────────
+export async function apiAdminList(resource: string) {
+  const r = await fetch(`${URLS.admin}?resource=${resource}&action=list`, { headers: authHeaders() });
+  return r.json();
+}
+
+export async function apiAdminAdd(resource: string, data: Record<string, unknown>) {
+  const r = await fetch(`${URLS.admin}?resource=${resource}&action=add`, {
+    method: "POST", headers: authHeaders(), body: JSON.stringify(data),
+  });
+  return r.json();
+}
+
+export async function apiAdminEdit(resource: string, data: Record<string, unknown>) {
+  const r = await fetch(`${URLS.admin}?resource=${resource}&action=edit`, {
+    method: "POST", headers: authHeaders(), body: JSON.stringify(data),
+  });
+  return r.json();
+}
+
+export async function apiAdminDelete(resource: string, id: number) {
+  const r = await fetch(`${URLS.admin}?resource=${resource}&action=delete`, {
+    method: "POST", headers: authHeaders(), body: JSON.stringify({ id }),
+  });
   return r.json();
 }

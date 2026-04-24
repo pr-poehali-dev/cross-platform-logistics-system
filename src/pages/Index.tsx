@@ -586,10 +586,10 @@ export default function Index() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { setAuthLoading(false); return; }
-    apiMe().then(res => {
-      if (res.user) setUser(res.user);
-      setAuthLoading(false);
-    });
+    apiMe()
+      .then(res => { if (res.user) setUser(res.user); })
+      .catch(() => { localStorage.removeItem("token"); })
+      .finally(() => setAuthLoading(false));
   }, []);
 
   const loadOrders = useCallback(async () => {
